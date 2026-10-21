@@ -1,45 +1,5 @@
 import AppKit
 
-/// A small round button drawn like a window's traffic light, shown on a highlighted thumbnail.
-final class CircleButton: NSView {
-    enum Kind { case close, minimize }
-    let kind: Kind
-    var action: (() -> Void)?
-
-    init(kind: Kind) {
-        self.kind = kind
-        super.init(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
-        toolTip = kind == .close ? "Close (⌘W)" : "Minimize (⌘M)"
-    }
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func draw(_ dirtyRect: NSRect) {
-        let circle = NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1))
-        NSColor(white: 0.12, alpha: 0.92).setFill()
-        circle.fill()
-        NSColor(white: 1, alpha: 0.35).setStroke()
-        circle.lineWidth = 1
-        circle.stroke()
-
-        let glyph = NSBezierPath()
-        let c = NSPoint(x: bounds.midX, y: bounds.midY)
-        let r: CGFloat = 4.5
-        if kind == .close {
-            glyph.move(to: NSPoint(x: c.x - r, y: c.y - r)); glyph.line(to: NSPoint(x: c.x + r, y: c.y + r))
-            glyph.move(to: NSPoint(x: c.x - r, y: c.y + r)); glyph.line(to: NSPoint(x: c.x + r, y: c.y - r))
-        } else {
-            glyph.move(to: NSPoint(x: c.x - r, y: c.y)); glyph.line(to: NSPoint(x: c.x + r, y: c.y))
-        }
-        glyph.lineWidth = 2
-        glyph.lineCapStyle = .round
-        NSColor.white.setStroke()
-        glyph.stroke()
-    }
-
-    override func mouseDown(with event: NSEvent) { action?() }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}
-
 /// One window in the overview: its live image, app icon, title and hover buttons.
 final class ThumbnailView: NSView {
     /// Space around the image inside this view, for the buttons (top/sides) and the app icon (bottom).
@@ -55,8 +15,7 @@ final class ThumbnailView: NSView {
     private let imageView = NSView()
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
-    private let closeButton = CircleButton(kind: .close)
-    private let minimizeButton = CircleButton(kind: .minimize)
+    private let lights = TrafficLights()
 
     var isHighlighted = false { didSet { updateChrome() } }
     var showsTitleAlways = false { didSet { updateChrome() } }
@@ -112,15 +71,12 @@ final class ThumbnailView: NSView {
         titleLabel.layer?.cornerRadius = 11
         addSubview(titleLabel)
 
-        closeButton.frame.origin = NSPoint(x: Self.sideInset - 10, y: bounds.height - Self.sideInset - 14)
-        closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
-        closeButton.action = { [weak self] in self?.onClose?() }
-        addSubview(closeButton)
-
-        minimizeButton.frame.origin = NSPoint(x: closeButton.frame.maxX + 4, y: closeButton.frame.minY)
-        minimizeButton.autoresizingMask = [.maxXMargin, .minYMargin]
-        minimizeButton.action = { [weak self] in self?.onMinimize?() }
-        addSubview(minimizeButton)
+        lights.frame.origin = NSPoint(x: Self.sideInset - TrafficLights.cornerOffset,
+                                      y: bounds.height - Self.sideInset + TrafficLights.cornerOffset - TrafficLights.size.height)
+        lights.autoresizingMask = [.maxXMargin, .minYMargin]
+        lights.interactive = true
+        lights.onPress = { [weak self] kind in kind == .close ? self?.onClose?() : self?.onMinimize?() }
+        addSubview(lights)
 
         setThumbnail(item.thumbnail)
         updateChrome()
@@ -141,8 +97,7 @@ final class ThumbnailView: NSView {
     private func updateChrome() {
         ring.isHidden = !isHighlighted
         titleLabel.isHidden = !(isHighlighted || showsTitleAlways)
-        closeButton.isHidden = !(isHighlighted && showsButtons)
-        minimizeButton.isHidden = closeButton.isHidden
+        lights.setShown(isHighlighted && showsButtons)
         needsLayout = true
     }
 
@@ -155,9 +110,7 @@ final class ThumbnailView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
-        for button in [closeButton, minimizeButton] where !button.isHidden && button.frame.contains(local) {
-            return button
-        }
+        if lights.isShown, lights.frame.contains(local) { return lights }
         return imageView.frame.insetBy(dx: -4, dy: -4).contains(local) || iconView.frame.contains(local) ? self : nil
     }
 

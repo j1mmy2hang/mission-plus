@@ -24,7 +24,7 @@ final class NativeMissionControl {
     private var hovered: Thumb?
     private var overlays: [ButtonOverlay] = []
     /// Button pressed with the mouse and waiting for mouse-up.
-    private var pendingButton: CircleButton.Kind?
+    private var pendingButton: TrafficLights.Kind?
 
     private let settings = Settings.shared
 
@@ -145,13 +145,30 @@ final class NativeMissionControl {
         } else {
             hovered = thumbs.first { $0.frame.contains(p) }
         }
-        let show = settings.showButtonsOnHover
-        for overlay in overlays { overlay.show(buttonsFor: show ? hovered?.frame : nil) }
+        refreshLights(pointer: p)
     }
 
-    private func buttonRect(_ kind: CircleButton.Kind, for thumb: Thumb) -> CGRect {
-        let origin = ButtonOverlay.buttonOrigin(kind, thumbFrame: thumb.frame)
-        return CGRect(origin: origin, size: CGSize(width: 24, height: 24))
+    /// Pushes the hovered thumbnail and the pointer's position over the lights to the overlays.
+    private func refreshLights(pointer p: CGPoint) {
+        guard settings.showButtonsOnHover, let thumb = hovered else {
+            overlays.forEach { $0.hideLights() }
+            return
+        }
+        let pill = pillRect(for: thumb)
+        let over = TrafficLights.Kind.allCases.first { buttonRect($0, for: thumb).contains(p) }
+        for overlay in overlays {
+            overlay.showLights(at: pill, for: thumb.wid, hovered: over, groupHovered: pill.contains(p), pressed: pendingButton)
+        }
+    }
+
+    /// The glass capsule's rect for a thumbnail, in top-left-origin global coordinates.
+    private func pillRect(for thumb: Thumb) -> CGRect {
+        CGRect(x: thumb.frame.minX - TrafficLights.cornerOffset, y: thumb.frame.minY - TrafficLights.cornerOffset,
+               width: TrafficLights.size.width, height: TrafficLights.size.height)
+    }
+
+    private func buttonRect(_ kind: TrafficLights.Kind, for thumb: Thumb) -> CGRect {
+        TrafficLights.hitRect(kind).offsetBy(dx: pillRect(for: thumb).minX, dy: pillRect(for: thumb).minY)
     }
 
     // MARK: Event tap
@@ -187,15 +204,21 @@ final class NativeMissionControl {
         case .leftMouseDown:
             updateHover()
             guard settings.showButtonsOnHover, let thumb = hovered else { return pass }
-            for kind in [CircleButton.Kind.close, .minimize] where buttonRect(kind, for: thumb).contains(event.location) {
+            for kind in TrafficLights.Kind.allCases where buttonRect(kind, for: thumb).contains(event.location) {
                 pendingButton = kind
+                refreshLights(pointer: event.location)
                 return nil
             }
             return pass
         case .leftMouseUp:
             guard let kind = pendingButton else { return pass }
             pendingButton = nil
-            if let thumb = hovered { perform(kind == .close ? .closeWindow : .minimizeWindow, on: thumb) }
+            // Releasing off the light cancels, like a real button.
+            if let thumb = hovered, buttonRect(kind, for: thumb).contains(event.location) {
+                perform(kind == .close ? .closeWindow : .minimizeWindow, on: thumb)
+            } else {
+                refreshLights(pointer: event.location)
+            }
             return nil
         case .otherMouseDown:
             return hovered?.frame.contains(event.location) == true ? nil : pass
@@ -254,7 +277,7 @@ final class NativeMissionControl {
         let point = CGPoint(x: target.frame.midX, y: target.frame.midY)
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
         hovered = target
-        for overlay in overlays { overlay.show(buttonsFor: settings.showButtonsOnHover ? target.frame : nil) }
+        refreshLights(pointer: point)
         return true
     }
 
@@ -280,21 +303,15 @@ final class NativeMissionControl {
         }
         if [.closeWindow, .minimizeWindow, .hideApp, .quitApp].contains(shortcut) {
             hovered = nil
-            overlays.forEach { $0.show(buttonsFor: nil) }
+            overlays.forEach { $0.hideLights() }
         }
     }
 }
 
-/// A transparent, click-through window above Mission Control that draws the hover buttons.
+/// A transparent, click-through window above Mission Control that draws the traffic lights.
 private final class ButtonOverlay: NSWindow {
-    private let closeButton = CircleButton(kind: .close)
-    private let minimizeButton = CircleButton(kind: .minimize)
-
-    /// Top-left corner of a button for a thumbnail, in top-left-origin global coordinates.
-    static func buttonOrigin(_ kind: CircleButton.Kind, thumbFrame: CGRect) -> CGPoint {
-        let x = thumbFrame.minX - 8 + (kind == .minimize ? 28 : 0)
-        return CGPoint(x: x, y: thumbFrame.minY - 8)
-    }
+    private let lights = TrafficLights()
+    private var shownFor: CGWindowID?
 
     init(screen: NSScreen) {
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -308,23 +325,30 @@ private final class ButtonOverlay: NSWindow {
         setFrame(screen.frame, display: false)
         let content = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         contentView = content
-        content.addSubview(closeButton)
-        content.addSubview(minimizeButton)
-        show(buttonsFor: nil)
+        content.addSubview(lights)
     }
 
-    func show(buttonsFor thumbFrame: CGRect?) {
-        guard let thumbFrame else {
-            closeButton.isHidden = true
-            minimizeButton.isHidden = true
+    /// Places the lights at `pill` (top-left-origin global coordinates) and mirrors the pointer state.
+    func showLights(at pill: CGRect, for wid: CGWindowID, hovered: TrafficLights.Kind?, groupHovered: Bool, pressed: TrafficLights.Kind?) {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let global = NSRect(x: pill.minX, y: primaryHeight - pill.maxY, width: pill.width, height: pill.height)
+        guard frame.contains(NSPoint(x: global.midX, y: global.midY)) else {
+            hideLights()
             return
         }
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        for (button, kind) in [(closeButton, CircleButton.Kind.close), (minimizeButton, .minimize)] {
-            let topLeft = Self.buttonOrigin(kind, thumbFrame: thumbFrame)
-            let global = NSPoint(x: topLeft.x, y: primaryHeight - topLeft.y - 24)
-            button.frame = NSRect(origin: convertPoint(fromScreen: global), size: NSSize(width: 24, height: 24))
-            button.isHidden = !frame.contains(global)
+        lights.frame = convertFromScreen(global)
+        lights.hoveredKind = hovered
+        lights.groupHovered = groupHovered
+        lights.pressedKind = pressed
+        if shownFor != wid {
+            // Moving to another thumbnail: pop in afresh there rather than sliding across.
+            if lights.isShown { lights.replayAppear() } else { lights.setShown(true) }
+            shownFor = wid
         }
+    }
+
+    func hideLights() {
+        shownFor = nil
+        lights.setShown(false)
     }
 }
