@@ -74,13 +74,16 @@ final class NativeMissionControl {
         guard let wm = windowManager() else { return nil }
         let displays = children(of: wm).filter { string($0, "AXIdentifier") == "mc.display" }
         guard !displays.isEmpty else { return nil }
+        // Mission Control also lists windows from other Spaces, at positions where nothing is drawn.
+        let spaces = Spaces.read()
         var result: [Thumb] = []
         for display in displays {
             for button in children(of: display) {
                 var value: AnyObject?
                 guard AXUIElementCopyAttributeValue(button, "wid" as CFString, &value) == .success,
                       let wid = (value as? NSNumber)?.uint32Value,
-                      let frame = frame(of: button), frame.width > 4 else { continue }
+                      let frame = frame(of: button), frame.width > 4,
+                      spaces.isOnCurrentSpace(wid) else { continue }
                 result.append(Thumb(wid: wid, frame: frame, element: button))
             }
         }

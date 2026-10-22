@@ -64,6 +64,18 @@ struct PreferencesView: View {
             }
 
             Section {
+                ForEach(OverviewInclude.allCases) { include in
+                    Toggle(include.label, isOn: Binding(get: { settings.overviewIncludes.contains(include) },
+                                                        set: { if $0 { settings.overviewIncludes.insert(include) } else { settings.overviewIncludes.remove(include) } }))
+                }
+            } header: {
+                Text("The overview also shows")
+            } footer: {
+                Text("Shown in a strip along the bottom. macOS can't capture windows that aren't on screen, so they show the image from the last time you saw them in the overview, or the app icon.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
                 ForEach(Shortcut.allCases) { shortcut in
                     Toggle(isOn: Binding(get: { settings.isEnabled(shortcut) },
                                          set: { settings.setEnabled(shortcut, $0) })) {
@@ -82,7 +94,7 @@ struct PreferencesView: View {
 
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: 720)
+        .frame(width: 540, height: 780)
         .onReceive(timer) { _ in
             accessibility = Permissions.accessibility
             screenRecording = Permissions.screenRecording

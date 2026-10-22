@@ -52,6 +52,22 @@ enum Shortcut: String, CaseIterable, Identifiable {
     }
 }
 
+/// Windows the overview can show besides those on screen. Each is off unless switched on in Preferences.
+enum OverviewInclude: String, CaseIterable, Identifiable {
+    case otherDesktops, fullScreen, minimized, hidden
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .otherDesktops: return "Windows on other desktops"
+        case .fullScreen: return "Full-screen windows"
+        case .minimized: return "Minimized windows"
+        case .hidden: return "Windows of hidden apps"
+        }
+    }
+}
+
 /// The global hotkey that opens the overview: a key plus Carbon modifier flags, and how to display it.
 struct HotKeySpec: Codable, Equatable {
     var keyCode: UInt32
@@ -123,6 +139,9 @@ final class Settings: ObservableObject {
     @Published var alwaysShowTitles: Bool {
         didSet { defaults.set(alwaysShowTitles, forKey: "alwaysShowTitles") }
     }
+    @Published var overviewIncludes: Set<OverviewInclude> {
+        didSet { defaults.set(overviewIncludes.map(\.rawValue), forKey: "overviewIncludes") }
+    }
     @Published var disabledShortcuts: Set<String> {
         didSet { defaults.set(Array(disabledShortcuts), forKey: "disabledShortcuts") }
     }
@@ -133,6 +152,7 @@ final class Settings: ObservableObject {
             ?? .standard
         swipeOpensOverview = defaults.object(forKey: "swipeOpensOverview") as? Bool ?? false
         alwaysShowTitles = defaults.object(forKey: "alwaysShowTitles") as? Bool ?? false
+        overviewIncludes = Set((defaults.stringArray(forKey: "overviewIncludes") ?? []).compactMap(OverviewInclude.init))
         disabledShortcuts = Set(defaults.stringArray(forKey: "disabledShortcuts") ?? [])
     }
 
