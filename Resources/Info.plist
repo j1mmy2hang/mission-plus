@@ -2,25 +2,41 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Mission Plus</string>
-    <key>CFBundleDisplayName</key><string>Mission Plus</string>
-    <key>CFBundleIdentifier</key><string>org.jimmyzhang.MissionPlus</string>
-    <key>CFBundleExecutable</key><string>MissionPlus</string>
-    <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <!-- The version is set by scripts/release.sh; CFBundleVersion is stamped at build time from the git commit count. -->
-    <key>CFBundleShortVersionString</key><string>1.0.0</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
-    <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
-    <key>LSUIElement</key><true/>
-    <key>NSHighResolutionCapable</key><true/>
-    <key>NSHumanReadableCopyright</key><string>© 2026 Jimmy Zhang. MIT License.</string>
-    <key>NSScreenCaptureUsageDescription</key><string>Mission Plus shows live thumbnails of your windows.</string>
-    <!-- Sparkle updates. The feed URL and public key are baked into every shipped copy: never change them. -->
-    <key>SUFeedURL</key><string>https://raw.githubusercontent.com/j1mmy2hang/mission-plus/main/appcast.xml</string>
-    <key>SUPublicEDKey</key><string>x7usUaWVkQuhxSAACz/RhiaQkpgXkf4b56ErCqq5iOI=</string>
-    <key>SUEnableAutomaticChecks</key><true/>
-    <key>SUScheduledCheckInterval</key><integer>86400</integer>
+	<key>CFBundleDisplayName</key>
+	<string>Mission Plus</string>
+	<key>CFBundleExecutable</key>
+	<string>MissionPlus</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.jimmyzhang.MissionPlus</string>
+	<key>CFBundleName</key>
+	<string>Mission Plus</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Jimmy Zhang. MIT License.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Mission Plus shows live thumbnails of your windows.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/j1mmy2hang/mission-plus/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>x7usUaWVkQuhxSAACz/RhiaQkpgXkf4b56ErCqq5iOI=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
