@@ -22,16 +22,19 @@ private final class OverviewInputView: NSView {
     override func mouseMoved(with event: NSEvent) { controller?.mouseMoved(to: convert(event.locationInWindow, from: nil)) }
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) { controller?.dismiss() } // click on empty space
-    override func keyDown(with event: NSEvent) { controller?.handleKey(event) }
-    // ⌘-shortcuts arrive here first; claim them before any menu sees them.
-    override func performKeyEquivalent(with event: NSEvent) -> Bool { controller?.handleKey(event) ?? false }
+    // Typing while the search field isn't focused (e.g. after a click) goes to the field.
+    override func keyDown(with event: NSEvent) { controller?.typeIntoSearch(event) }
+    // Window shortcuts (⌘W, ⌘M…) arrive here before the Edit menu; anything else (⌘A, ⌘V…) falls through to it.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        controller?.handleShortcut(event) ?? false || super.performKeyEquivalent(with: event)
+    }
 }
 
 /// The window overview: shows every window on the current Space and lets you act on them.
 final class Overview {
     private var window: OverviewWindow?
     private var inputView: OverviewInputView?
-    private var filterLabel: NSTextField?
+    private var searchBar: SearchBar?
     private var emptyLabel: NSTextField?
 
     private var items: [WindowItem] = []
@@ -95,15 +98,20 @@ final class Overview {
         input.controller = self
         blur.addSubview(input)
 
-        let filterLabel = makePill(fontSize: 18)
-        input.addSubview(filterLabel)
-        let emptyLabel = makePill(fontSize: 20)
-        emptyLabel.stringValue = "No open windows on this Space"
+        let searchBar = SearchBar()
+        searchBar.onChange = { [weak self] text in self?.filter = text }
+        searchBar.onCommand = { [weak self] selector in self?.handleCommand(selector) ?? false }
+        input.addSubview(searchBar)
+        let emptyLabel = NSTextField(labelWithString: "")
+        emptyLabel.font = .systemFont(ofSize: 20, weight: .medium)
+        emptyLabel.textColor = NSColor(white: 1, alpha: 0.7)
+        emptyLabel.alignment = .center
+        emptyLabel.isHidden = true
         input.addSubview(emptyLabel)
 
         self.window = window
         self.inputView = input
-        self.filterLabel = filterLabel
+        self.searchBar = searchBar
         self.emptyLabel = emptyLabel
 
         // Thumbnails start exactly where the real windows are, then fly into the grid.
@@ -111,7 +119,7 @@ final class Overview {
 
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(input)
+        searchBar.focus()
 
         let local = window.convertPoint(fromScreen: mouse)
         relayout(animated: true)
@@ -165,18 +173,6 @@ final class Overview {
 
     // MARK: Views and layout
 
-    private func makePill(fontSize: CGFloat) -> NSTextField {
-        let label = NSTextField(labelWithString: "")
-        label.font = .systemFont(ofSize: fontSize, weight: .medium)
-        label.textColor = .white
-        label.alignment = .center
-        label.wantsLayer = true
-        label.layer?.backgroundColor = NSColor(white: 0.1, alpha: 0.7).cgColor
-        label.layer?.cornerRadius = 14
-        label.isHidden = true
-        return label
-    }
-
     private func addView(for item: WindowItem, startingAt rect: CGRect) {
         let view = ThumbnailView(item: item, imageRect: rect)
         view.showsTitleAlways = settings.alwaysShowTitles
@@ -184,7 +180,7 @@ final class Overview {
         view.onOpen = { [weak self] in self?.dismiss(focus: item) }
         view.onClose = { [weak self] in self?.perform(.closeWindow, on: item) }
         view.onMinimize = { [weak self] in self?.perform(.minimizeWindow, on: item) }
-        inputView?.addSubview(view, positioned: .below, relativeTo: filterLabel)
+        inputView?.addSubview(view, positioned: .below, relativeTo: searchBar)
         views[item.id] = view
     }
 
@@ -199,7 +195,8 @@ final class Overview {
     private func relayout(animated: Bool) {
         guard let window, let screen = window.screen ?? NSScreen.main else { return }
         let visible = visibleItems
-        let topInset: CGFloat = filter.isEmpty ? 50 : 90
+        let searchGap: CGFloat = 24
+        let topInset = searchGap * 2 + SearchBar.size.height
         let visibleFrame = window.convertFromScreen(screen.visibleFrame)
         let area = NSRect(x: visibleFrame.minX + 50, y: visibleFrame.minY + 40,
                           width: visibleFrame.width - 100, height: visibleFrame.height - 40 - topInset)
@@ -222,17 +219,16 @@ final class Overview {
         }
 
         let bounds = inputView?.bounds ?? .zero
-        if let filterLabel {
-            filterLabel.stringValue = "  🔍  \(filter)  "
-            filterLabel.isHidden = filter.isEmpty
-            let size = filterLabel.intrinsicContentSize
-            filterLabel.frame = NSRect(x: bounds.midX - (size.width + 24) / 2, y: area.maxY + 24, width: size.width + 24, height: 32)
+        if let searchBar {
+            searchBar.frame.origin = NSPoint(x: (bounds.width - SearchBar.size.width) / 2,
+                                             y: visibleFrame.maxY - searchGap - SearchBar.size.height)
+            searchBar.setCount(matching: visible.count, total: items.count)
         }
         if let emptyLabel {
-            emptyLabel.stringValue = filter.isEmpty ? "  No open windows on this Space  " : "  No windows match “\(filter)”  "
+            emptyLabel.stringValue = filter.isEmpty ? "No open windows on this Space" : "No windows match “\(filter)”"
             emptyLabel.isHidden = !visible.isEmpty
-            let size = emptyLabel.intrinsicContentSize
-            emptyLabel.frame = NSRect(x: bounds.midX - (size.width + 24) / 2, y: bounds.midY - 18, width: size.width + 24, height: 36)
+            emptyLabel.sizeToFit()
+            emptyLabel.setFrameOrigin(NSPoint(x: bounds.midX - emptyLabel.frame.width / 2, y: area.midY - emptyLabel.frame.height / 2))
         }
     }
 
@@ -303,39 +299,40 @@ final class Overview {
 
     private var selectedItem: WindowItem? { items.first { $0.id == selectedID } }
 
-    @discardableResult
-    func handleKey(_ event: NSEvent) -> Bool {
+    /// Window shortcuts (⌘W, ⌘M…), from anywhere in the overview.
+    func handleShortcut(_ event: NSEvent) -> Bool {
         guard event.type == .keyDown else { return false }
-        let mods = event.modifierFlags.intersection([.command, .option, .control])
-
         for shortcut in Shortcut.allCases where shortcut.matches(event) {
-            guard settings.isEnabled(shortcut) else { return true }
-            perform(shortcut, on: selectedItem)
+            if settings.isEnabled(shortcut) { perform(shortcut, on: selectedItem) }
             return true
         }
-        if mods.contains(.command) || mods.contains(.control) { return false }
+        return false
+    }
 
-        switch Int(event.keyCode) {
-        case 53: // Escape
-            if filter.isEmpty { dismiss() } else { filter = "" }
-        case 36, 76: // Return, Enter
+    /// Navigation keys typed in the search field. Arrows move between windows rather than the caret;
+    /// word- and line-wise moves (⌥←, ⌘←) and shift-selection still edit the text.
+    func handleCommand(_ selector: Selector) -> Bool {
+        switch selector {
+        case #selector(NSResponder.moveLeft(_:)): move(dx: -1, dy: 0)
+        case #selector(NSResponder.moveRight(_:)): move(dx: 1, dy: 0)
+        case #selector(NSResponder.moveUp(_:)): move(dx: 0, dy: 1)
+        case #selector(NSResponder.moveDown(_:)): move(dx: 0, dy: -1)
+        case #selector(NSResponder.insertTab(_:)): cycle(backwards: false)
+        case #selector(NSResponder.insertBacktab(_:)): cycle(backwards: true)
+        case #selector(NSResponder.insertNewline(_:)):
             if let item = selectedItem ?? visibleItems.first { dismiss(focus: item) }
-        case 49 where filter.isEmpty: // Space opens, unless typing a search
-            if let item = selectedItem { dismiss(focus: item) }
-        case 123: move(dx: -1, dy: 0)
-        case 124: move(dx: 1, dy: 0)
-        case 125: move(dx: 0, dy: -1)
-        case 126: move(dx: 0, dy: 1)
-        case 48: cycle(backwards: event.modifierFlags.contains(.shift)) // Tab
-        case 51: // Delete
-            if !filter.isEmpty { filter.removeLast() }
+        case #selector(NSResponder.cancelOperation(_:)):
+            if filter.isEmpty { dismiss() } else { searchBar?.clear() }
         default:
-            // Typing filters windows by title or app name.
-            if let chars = event.characters, !chars.isEmpty, chars.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
-                filter += chars
-            }
+            return false
         }
         return true
+    }
+
+    func typeIntoSearch(_ event: NSEvent) {
+        guard let searchBar else { return }
+        searchBar.focus()
+        searchBar.field.currentEditor()?.keyDown(with: event)
     }
 
     private func cycle(backwards: Bool) {

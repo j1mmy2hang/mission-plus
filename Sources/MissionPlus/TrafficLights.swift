@@ -45,9 +45,9 @@ final class TrafficLights: NSView {
         wantsLayer = true
 
         let content = NSView(frame: bounds)
-        content.autoresizingMask = [.width, .height]
         lights.values.forEach(content.addSubview)
-        addSubview(Self.makeGlass(around: content, size: bounds.size))
+        // A light smoke tint keeps the window's own traffic lights from showing through the glass.
+        addSubview(Glass.capsule(around: content, size: bounds.size, tint: NSColor(white: 0.05, alpha: 0.45), interactive: true))
 
         shadow = {
             let s = NSShadow()
@@ -60,31 +60,6 @@ final class TrafficLights: NSView {
         alphaValue = 0
     }
     required init?(coder: NSCoder) { fatalError() }
-
-    /// Liquid Glass on macOS 26+, a HUD material before that.
-    private static func makeGlass(around content: NSView, size: NSSize) -> NSView {
-        let frame = NSRect(origin: .zero, size: size)
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView(frame: frame)
-            glass.cornerRadius = size.height / 2
-            glass.style = .regular
-            // A light smoke tint keeps the window's own traffic lights from showing through the glass.
-            glass.tintColor = NSColor(white: 0.05, alpha: 0.45)
-            if #available(macOS 27.0, *) { glass.effectIsInteractive = true }
-            glass.contentView = content
-            glass.autoresizingMask = [.width, .height]
-            return glass
-        }
-        let blur = NSVisualEffectView(frame: frame)
-        blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.wantsLayer = true
-        blur.layer?.cornerRadius = size.height / 2
-        blur.layer?.masksToBounds = true
-        blur.addSubview(content)
-        return blur
-    }
 
     // MARK: Showing
 

@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.store(in: &subscriptions)
 
         setUpStatusItem()
+        setUpEditMenu()
         missionControl.start()
 
         if !Permissions.accessibility || !Permissions.screenRecording {
@@ -53,6 +54,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit Mission Plus", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu
         statusItem = item
+    }
+
+    /// An accessory app shows no menu bar, but its main menu still supplies key equivalents.
+    /// Without an Edit menu, ⌘A / ⌘C / ⌘V / ⌘X / ⌘Z do nothing in text fields.
+    private func setUpEditMenu() {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        editItem.submenu = edit
+        let main = NSMenu()
+        main.addItem(NSMenuItem()) // the app menu slot
+        main.addItem(editItem)
+        NSApp.mainMenu = main
     }
 
     @objc private func showOverview() {
