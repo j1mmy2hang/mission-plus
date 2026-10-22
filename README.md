@@ -13,9 +13,7 @@
   <a href="https://github.com/j1mmy2hang/mission-plus/releases/latest/download/MissionPlus.dmg"><b>Download for macOS</b></a>
 </p>
 
-<!-- Demo: add a short screen recording as docs/demo.gif and uncomment.
-<p align="center"><img src="docs/demo.gif" width="720" alt="Mission Plus in Mission Control"></p>
--->
+<p align="center"><img src="docs/demo.gif" width="720" alt="The Mission Plus window overview: closing a window with ⌘W, searching, and opening a window"></p>
 
 ## What it does
 
