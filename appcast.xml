@@ -5,6 +5,17 @@
     <link>https://github.com/j1mmy2hang/mission-plus</link>
     <language>en</language>
     <item>
+      <title>1.1.1</title>
+      <pubDate>Thu, 22 Oct 2026 13:16:11 -0400</pubDate>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<ul><li><strong>Smoother Mission Control again.</strong> After you close or minimize a window, Mission Control rearranges the rest as smoothly as before. 1.1.0 queried macOS about Spaces dozens of times a second while Mission Control was open, which competed with its animation.</li><li><strong>⌘W and ⌘M in Mission Control respond faster.</strong></li></ul>
+      ]]></description>
+      <enclosure url="https://github.com/j1mmy2hang/mission-plus/releases/download/v1.1.1/MissionPlus-1.1.1.zip" type="application/octet-stream" sparkle:edSignature="B+uXNGqA3MNSJixVhW7FOmi5/oj07fd32Uir4mrzj7uMa/Y/AS5BweBrS2fykgMnfM4F4RuuClQe5xsoAQfEAg==" length="2200972"/>
+    </item>
+    <item>
       <title>1.1.0</title>
       <pubDate>Thu, 22 Oct 2026 13:12:49 -0400</pubDate>
       <sparkle:version>16</sparkle:version>
