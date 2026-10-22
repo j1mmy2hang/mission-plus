@@ -3,6 +3,13 @@
 Release notes for each version. `scripts/release.sh` copies a version's section into the
 update window and the GitHub release, so write it for the people using the app.
 
+## 1.1.1
+
+- **Smoother Mission Control again.** After you close or minimize a window, Mission Control rearranges
+  the rest as smoothly as before. 1.1.0 queried macOS about Spaces dozens of times a second while
+  Mission Control was open, which competed with its animation.
+- **⌘W and ⌘M in Mission Control respond faster.**
+
 ## 1.1.0
 
 - **Windows from every Space, if you want them.** In Preferences, the overview can also show windows

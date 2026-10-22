@@ -41,6 +41,8 @@ final class NativeMissionControl {
 
     func start() {
         guard timer == nil else { return }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                          object: nil, queue: .main) { [weak self] _ in self?.forgetSpaces() }
         schedule(interval: 0.12)
     }
 
@@ -70,12 +72,31 @@ final class NativeMissionControl {
         return wmElement
     }
 
+    /// Whether each window Mission Control lists is on the current Space, asked once per window. This runs
+    /// 60 times a second while Mission Control animates, and the WindowServer that answers Space queries is the
+    /// process drawing that animation: re-asking every frame made Mission Control's re-layout stutter.
+    /// Cleared whenever Mission Control opens or closes, or the Space changes.
+    private var onCurrentSpace: [CGWindowID: Bool] = [:]
+    private var spaces: Spaces?
+
+    private func isOnCurrentSpace(_ wid: CGWindowID) -> Bool {
+        if let known = onCurrentSpace[wid] { return known }
+        let spaces = self.spaces ?? Spaces.read()
+        self.spaces = spaces
+        let answer = spaces.isOnCurrentSpace(wid)
+        onCurrentSpace[wid] = answer
+        return answer
+    }
+
+    private func forgetSpaces() {
+        onCurrentSpace = [:]
+        spaces = nil
+    }
+
     private func readThumbs() -> [Thumb]? {
         guard let wm = windowManager() else { return nil }
         let displays = children(of: wm).filter { string($0, "AXIdentifier") == "mc.display" }
         guard !displays.isEmpty else { return nil }
-        // Mission Control also lists windows from other Spaces, at positions where nothing is drawn.
-        let spaces = Spaces.read()
         var result: [Thumb] = []
         for display in displays {
             for button in children(of: display) {
@@ -83,7 +104,8 @@ final class NativeMissionControl {
                 guard AXUIElementCopyAttributeValue(button, "wid" as CFString, &value) == .success,
                       let wid = (value as? NSNumber)?.uint32Value,
                       let frame = frame(of: button), frame.width > 4,
-                      spaces.isOnCurrentSpace(wid) else { continue }
+                      // Mission Control also lists windows from other Spaces, at positions where nothing is drawn.
+                      isOnCurrentSpace(wid) else { continue }
                 result.append(Thumb(wid: wid, frame: frame, element: button))
             }
         }
@@ -132,6 +154,7 @@ final class NativeMissionControl {
         guard active != isActive else { return }
         isActive = active
         pendingButton = nil
+        forgetSpaces()
         previousFrames = [:]
         gone = []
         if active {
@@ -318,7 +341,8 @@ final class NativeMissionControl {
     // MARK: Actions
 
     private func perform(_ shortcut: Shortcut, on thumb: Thumb?) {
-        let all = thumbs.compactMap { Windows.item(withID: $0.wid) }
+        // Only the "all windows" shortcuts need every window looked up; ⌘W shouldn't wait on that.
+        var all: [WindowItem] { thumbs.compactMap { Windows.item(withID: $0.wid) } }
         let item = thumb.flatMap { Windows.item(withID: $0.wid) }
         switch shortcut {
         case .closeWindow: item.map(Windows.close)
