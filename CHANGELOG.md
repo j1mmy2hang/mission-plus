@@ -3,6 +3,12 @@
 Release notes for each version. `scripts/release.sh` copies a version's section into the
 update window and the GitHub release, so write it for the people using the app.
 
+## 1.1.2
+
+- **Unsaved changes aren't left hidden.** If a window you close (or an app you quit) asks
+  "Save changes?", Mission Plus now leaves the overview or Mission Control and brings that window
+  forward so you can answer. Before, the question waited out of sight behind the overview.
+
 ## 1.1.1
 
 - **Smoother Mission Control again.** After you close or minimize a window, Mission Control rearranges
