@@ -76,7 +76,7 @@ build() {
 
   step "Versioning $VERSION"
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$ROOT/Resources/Info.plist"
-  git -C "$ROOT" commit -q -am "Release $VERSION"
+  git -C "$ROOT" commit -q --allow-empty -am "Release $VERSION"
   git -C "$ROOT" tag "v$VERSION"
 
   step "Building"
