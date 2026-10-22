@@ -24,7 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="j1mmy2hang/mission-plus"
 NOTARY_PROFILE="MissionPlusNotary"
 KEY_ACCOUNT="MissionPlus"
-APP="$ROOT/build/Mission Plus.app"
+APP="$ROOT/build/release/Mission Plus.app"
 SPARKLE_BIN="$ROOT/.build/artifacts/sparkle/Sparkle/bin"
 
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

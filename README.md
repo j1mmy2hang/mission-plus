@@ -85,8 +85,10 @@ Requires Xcode 26 or later.
 ```sh
 git clone https://github.com/j1mmy2hang/mission-plus.git
 cd mission-plus
-./build.sh --run
+./build.sh --install    # build, copy to /Applications, launch
 ```
+
+Use `./build.sh --run` to launch a build without installing it.
 
 `build.sh` signs with your Apple Development certificate if you have one, so macOS remembers the
 permissions across rebuilds; otherwise it signs ad hoc, and you'll need to grant them again after each
