@@ -56,6 +56,7 @@ final class ThumbnailView: NSView {
         imageView.layer?.masksToBounds = true
         imageView.layer?.backgroundColor = NSColor(white: 0.2, alpha: 0.85).cgColor
         imageView.layer?.contentsGravity = .resize
+        imageView.layer?.minificationFilter = .trilinear // big captures shown small stay smooth
         addSubview(imageView)
 
         iconView.image = item.icon

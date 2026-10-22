@@ -241,6 +241,7 @@ final class Overview {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         stageHost.addSublayer(stage)
+        var focusLayer: CALayer?
         let backToFront = items.reversed().filter { $0.id != focus?.id } + (focus.map { [$0] } ?? [])
         for item in backToFront {
             guard let view = views[item.id], targets[item.id] != nil else { continue }
@@ -254,6 +255,8 @@ final class Overview {
                 layer.backgroundColor = NSColor(white: 0.2, alpha: 0.85).cgColor
             }
             layer.masksToBounds = true
+            layer.minificationFilter = .trilinear
+            if item.id == focus?.id { focusLayer = layer }
             // A window that isn't on screen has nowhere here to land: its snapshot fades out where it is.
             let isHere = item.place == .here
             let to = isHere ? window.convertFromScreen(item.frame) : view.imageRectInSuperview
@@ -270,6 +273,23 @@ final class Overview {
         // Explicit animations: these layers were created in this same event, so they have never been on screen,
         // and Core Animation skips implicit animations for such layers (the snapshots would just jump into place).
         let duration: CFTimeInterval = 0.36
+
+        // Chosen before its full-size capture arrived: fetch it now and cross-fade it into the flying snapshot,
+        // so it sharpens during the motion rather than with a jump at the hand-off.
+        prefetch?.cancel()
+        if let focus, let focusLayer, focus.place == .here, let size = fullSize(of: focus),
+           CGFloat(shownWidth[focus.id] ?? 0) < size.width * 0.95 {
+            Windows.captureThumbnails(sizes: [focus.id: size]) { [weak self] id, image in
+                let fade = CATransition()
+                fade.type = .fade
+                fade.duration = 0.12
+                focusLayer.add(fade, forKey: "sharpen")
+                focusLayer.contents = image
+                focusLayer.contentsGravity = .resize
+                focusLayer.backgroundColor = nil
+                self?.thumbnailCache[id] = image
+            }
+        }
         let timing = CAMediaTimingFunction(controlPoints: 0.2, 0.85, 0.25, 1)
         for flight in flights {
             let position = CABasicAnimation(keyPath: "position")
@@ -415,6 +435,40 @@ final class Overview {
 
     private func updateHighlight() {
         for (id, view) in views { view.isHighlighted = id == selectedID }
+        prefetchFullResolution()
+    }
+
+    /// The highlighted window is the one ↵ or a click opens, and its snapshot grows to full size on the way out.
+    /// Capture it at its real resolution ahead of time, so the hand-off to the real window doesn't visibly sharpen.
+    /// Debounced, so sweeping the pointer across the grid doesn't capture every window it passes.
+    private var prefetch: DispatchWorkItem?
+
+    private func prefetchFullResolution() {
+        prefetch?.cancel()
+        guard let item = selectedItem, item.place == .here, let size = fullSize(of: item),
+              size.width > (requestedWidth[item.id] ?? 0) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isDismissing, self.selectedID == item.id else { return }
+            self.requestedWidth[item.id] = size.width
+            Windows.captureThumbnails(sizes: [item.id: size]) { [weak self] id, image in self?.show(image, for: id) }
+        }
+        prefetch = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+    }
+
+    /// A window's size in pixels on screen.
+    private func fullSize(of item: WindowItem) -> CGSize? {
+        guard let scale = window?.backingScaleFactor else { return nil }
+        return CGSize(width: (item.frame.width * scale).rounded(), height: (item.frame.height * scale).rounded())
+    }
+
+    /// Uses a fresh capture, unless a sharper one is already showing.
+    private func show(_ image: CGImage, for id: CGWindowID) {
+        guard image.width >= shownWidth[id] ?? 0 else { return }
+        shownWidth[id] = image.width
+        thumbnailCache[id] = image
+        items.first { $0.id == id }?.thumbnail = image
+        views[id]?.setThumbnail(image)
     }
 
     /// Captures each visible window at the size its thumbnail is drawn (never more than the window's own pixels),
@@ -433,13 +487,7 @@ final class Overview {
             requestedWidth[item.id] = width
             sizes[item.id] = CGSize(width: width, height: (width * item.frame.height / item.frame.width).rounded())
         }
-        Windows.captureThumbnails(sizes: sizes) { [weak self] id, image in
-            guard let self, image.width >= self.shownWidth[id] ?? 0 else { return }
-            self.shownWidth[id] = image.width
-            self.thumbnailCache[id] = image
-            self.items.first { $0.id == id }?.thumbnail = image
-            self.views[id]?.setThumbnail(image)
-        }
+        Windows.captureThumbnails(sizes: sizes) { [weak self] id, image in self?.show(image, for: id) }
     }
 
     /// Re-reads the window list after an action, so windows that refused to close (unsaved changes) come back.
