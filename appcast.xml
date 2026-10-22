@@ -4,5 +4,17 @@
     <title>Mission Plus</title>
     <link>https://github.com/j1mmy2hang/mission-plus</link>
     <language>en</language>
+    <item>
+      <title>1.0.0</title>
+      <pubDate>Thu, 22 Oct 2026 10:24:30 -0400</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<p>First public release.</p>
+<ul><li><strong>Close and minimize buttons in Mission Control.</strong> Hover any window in macOS's own Mission Control to get traffic-light buttons on it.</li><li><strong>Keyboard shortcuts in Mission Control.</strong> ⌘W, ⌘M, ⌘H and ⌘Q act on the highlighted window; ⌥⌘W and ⌥⌘M close or minimize everything; ⌥⌘H hides every other app; arrow keys move between windows and ↵ opens one.</li><li><strong>Window Overview.</strong> A Mission Control–style overview of every window, with live thumbnails and type-to-search. Open it with ⌃⌥↑ (or your own shortcut), or let it replace the three- or four-finger swipe up.</li><li><strong>Updates.</strong> Mission Plus checks for new versions once a day and asks before installing.</li></ul>
+      ]]></description>
+      <enclosure url="https://github.com/j1mmy2hang/mission-plus/releases/download/v1.0.0/MissionPlus-1.0.0.zip" type="application/octet-stream" sparkle:edSignature="RWD36IxZ6gpOfI7Mtzi1eO+InEec+DU2XiIphlypFDfV7CtssOCp0Qt264t8TGIqlMmNcLuEmHz7gz48VkxRDA==" length="2102222"/>
+    </item>
   </channel>
 </rss>
