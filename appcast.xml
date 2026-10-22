@@ -5,6 +5,17 @@
     <link>https://github.com/j1mmy2hang/mission-plus</link>
     <language>en</language>
     <item>
+      <title>1.1.0</title>
+      <pubDate>Thu, 22 Oct 2026 13:12:49 -0400</pubDate>
+      <sparkle:version>16</sparkle:version>
+      <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<ul><li><strong>Windows from every Space, if you want them.</strong> In Preferences, the overview can also show windows on other desktops, full-screen windows, minimized windows and windows of hidden apps, in a strip along the bottom. F, M and H mark full-screen, minimized and hidden ones. Opening one switches to its Space, restores it or unhides its app.</li><li><strong>Tidy up without leaving.</strong> ⌘H, ⌘Q, ⌘W and ⌘M no longer close the overview. With hidden or minimized windows shown, ⌘H and ⌘M move windows into the strip, and pressing them again undoes it.</li><li><strong>Straight to the window you pick,</strong> even when its app has windows on several Spaces.</li><li><strong>Sharper exit.</strong> The window you open grows from a full-resolution snapshot.</li><li><strong>Windows without a thumbnail</strong> show their app's icon and title on a tint of the app's colours.</li><li><strong>Fixed:</strong> in Mission Control, close and minimize buttons could appear over windows from other Spaces.</li></ul>
+      ]]></description>
+      <enclosure url="https://github.com/j1mmy2hang/mission-plus/releases/download/v1.1.0/MissionPlus-1.1.0.zip" type="application/octet-stream" sparkle:edSignature="V2EtS1AADaY0fKtcsXhwBHC+e3KvXIxgWYVeAygSZl1iuR9EDQEi0wqTVySqlQxWpAcsvzBtlQJ8KsYwZQMPAQ==" length="2196870"/>
+    </item>
+    <item>
       <title>1.0.0</title>
       <pubDate>Thu, 22 Oct 2026 10:24:30 -0400</pubDate>
       <sparkle:version>10</sparkle:version>
