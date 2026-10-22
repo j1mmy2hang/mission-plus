@@ -1,11 +1,14 @@
 import AppKit
 import Combine
+import Sparkle
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overview = Overview()
     private let missionControl = NativeMissionControl()
     private let swipe = SwipeGesture()
+    /// Checks the appcast daily (SUScheduledCheckInterval) and offers updates; never installs silently.
+    private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var hotKey: HotKey?
     private var statusItem: NSStatusItem?
     private var preferencesWindow: NSWindow?
@@ -58,7 +61,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let prefs = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)
+        let updates = NSMenuItem(title: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+        updates.target = updater
+        menu.addItem(updates)
         menu.addItem(.separator())
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let about = NSMenuItem(title: "Mission Plus \(version)", action: nil, keyEquivalent: "")
+        about.isEnabled = false
+        menu.addItem(about)
         menu.addItem(NSMenuItem(title: "Quit Mission Plus", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu
         statusItem = item
