@@ -5,22 +5,37 @@
 <h1 align="center">Mission Plus</h1>
 
 <p align="center">
-  Close, minimize and keyboard-drive your windows from Mission Control.<br>
-  Free and open source.
+  <b>Mission Control Plus, but free and smoother.</b><br>
+  Close, minimize and keyboard-drive your windows. Open source.
 </p>
 
 <p align="center">
   <a href="https://github.com/j1mmy2hang/mission-plus/releases/latest/download/MissionPlus.dmg"><b>Download for macOS</b></a>
 </p>
 
-<p align="center"><img src="docs/demo.gif" width="720" alt="The Mission Plus window overview: closing a window with ⌘W, searching, and opening a window"></p>
+## Two ways to use it
 
-## What it does
+Mission Plus works inside macOS's own Mission Control, and also brings its own Window Overview.
+Use either or both: pick which one the trackpad's swipe up opens in Preferences.
 
-**Buttons in Mission Control.** Open Mission Control as usual and hover a window: close and minimize
-buttons appear on it, styled like macOS's own traffic lights.
+### 1. In Mission Control
 
-**Shortcuts in Mission Control.** Act on the highlighted window without leaving Mission Control:
+Open Mission Control as usual (swipe up, ⌃↑ or F3) and hover a window: close and minimize buttons
+appear on it, styled like macOS's own traffic lights, and keyboard shortcuts act on it.
+
+<p align="center"><img src="docs/demo-mission-control.gif" width="720" alt="Mission Plus in macOS Mission Control: hovering a window shows close and minimize buttons, and ⌘W closes it"></p>
+
+### 2. Window Overview
+
+A Mission Control–style overview of every window on the current Space, with live thumbnails, the same
+buttons and shortcuts, and type-to-search. Open it with ⌃⌥↑ (or a shortcut of your choice), or let it
+take over the three- or four-finger swipe up. Mission Control stays on ⌃↑ and F3.
+
+<p align="center"><img src="docs/demo-overview.gif" width="720" alt="The Mission Plus Window Overview: closing a window with ⌘W, searching, and opening a window"></p>
+
+### Shortcuts
+
+In both, these act on the highlighted window:
 
 | Key | Action |
 |---|---|
@@ -36,10 +51,6 @@ buttons appear on it, styled like macOS's own traffic lights.
 | Middle-click | Close the window |
 
 Each shortcut can be switched off in Preferences.
-
-**Window Overview.** A Mission Control–style overview of every window on the current Space, with live
-thumbnails and the same buttons and shortcuts, plus type-to-search. Open it with ⌃⌥↑ (or a shortcut of
-your choice), or let it take over the three- or four-finger swipe up. Mission Control stays on ⌃↑ and F3.
 
 ## Install
 
