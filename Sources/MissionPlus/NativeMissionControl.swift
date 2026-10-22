@@ -25,6 +25,17 @@ final class NativeMissionControl {
     private var overlays: [ButtonOverlay] = []
     /// Button pressed with the mouse and waiting for mouse-up.
     private var pendingButton: TrafficLights.Kind?
+    /// Thumbnail frames from the previous poll, to tell when Mission Control is animating them.
+    private var previousFrames: [CGWindowID: CGRect] = [:]
+    /// Windows closed or minimized from here that Mission Control is still fading out.
+    private var gone: Set<CGWindowID> = []
+    /// Lights stay hidden until this time, while Mission Control opens or closes.
+    /// Its accessibility frames jump straight to where thumbnails end up, so following them mid-animation
+    /// leaves the lights hanging in empty space.
+    private var suppressedUntil: TimeInterval = 0
+
+    private static let openDelay: TimeInterval = 0.35
+    private static let closeDelay: TimeInterval = 0.6
 
     private let settings = Settings.shared
 
@@ -105,6 +116,7 @@ final class NativeMissionControl {
         }
         ensureTap()
         if let found = readThumbs() {
+            previousFrames = Dictionary(thumbs.map { ($0.wid, $0.frame) }, uniquingKeysWith: { a, _ in a })
             thumbs = found
             setActive(true)
             updateHover()
@@ -117,7 +129,10 @@ final class NativeMissionControl {
         guard active != isActive else { return }
         isActive = active
         pendingButton = nil
+        previousFrames = [:]
+        gone = []
         if active {
+            suppress(for: Self.openDelay)
             overlays = NSScreen.screens.map { ButtonOverlay(screen: $0) }
             overlays.forEach { $0.orderFrontRegardless() }
             schedule(interval: 1.0 / 60) // track thumbnails smoothly while Mission Control animates
@@ -137,20 +152,27 @@ final class NativeMissionControl {
 
     private func updateHover() {
         let p = mouse
-        // Keep the current thumbnail while the pointer is on its buttons, which stick out past the corner.
-        if let current = hovered, let fresh = thumbs.first(where: { $0.wid == current.wid }),
-           fresh.frame.insetBy(dx: -16, dy: -16).contains(p),
-           !thumbs.contains(where: { $0.wid != fresh.wid && $0.frame.contains(p) }) {
+        let candidates = thumbs.filter { !gone.contains($0.wid) }
+        // Keep the current thumbnail while the pointer is on its buttons, which stick out past the corner,
+        // or while one of them is held down.
+        if let current = hovered, let fresh = candidates.first(where: { $0.wid == current.wid }),
+           pendingButton != nil || pillRect(for: fresh).contains(p) {
             hovered = fresh
         } else {
-            hovered = thumbs.first { $0.frame.contains(p) }
+            hovered = candidates.first { $0.frame.insetBy(dx: -4, dy: -4).contains(p) }
         }
         refreshLights(pointer: p)
     }
 
+    private func suppress(for duration: TimeInterval) {
+        suppressedUntil = CACurrentMediaTime() + duration
+        overlays.forEach { $0.hideLights() }
+    }
+
     /// Pushes the hovered thumbnail and the pointer's position over the lights to the overlays.
     private func refreshLights(pointer p: CGPoint) {
-        guard let thumb = hovered else {
+        let moving = hovered.map { previousFrames[$0.wid] != $0.frame } ?? false
+        guard let thumb = hovered, !moving, CACurrentMediaTime() >= suppressedUntil else {
             overlays.forEach { $0.hideLights() }
             return
         }
@@ -203,15 +225,21 @@ final class NativeMissionControl {
         switch type {
         case .leftMouseDown:
             updateHover()
-            guard let thumb = hovered else { return pass }
-            for kind in TrafficLights.Kind.allCases where buttonRect(kind, for: thumb).contains(event.location) {
-                pendingButton = kind
-                refreshLights(pointer: event.location)
-                return nil
+            if let thumb = hovered {
+                for kind in TrafficLights.Kind.allCases where buttonRect(kind, for: thumb).contains(event.location) {
+                    pendingButton = kind
+                    refreshLights(pointer: event.location)
+                    return nil
+                }
             }
+            // A click for Mission Control opens a window, leaves, or starts a drag: no lights until it settles.
+            suppress(for: .infinity)
             return pass
         case .leftMouseUp:
-            guard let kind = pendingButton else { return pass }
+            guard let kind = pendingButton else {
+                suppress(for: Self.closeDelay)
+                return pass
+            }
             pendingButton = nil
             // Releasing off the light cancels, like a real button.
             if let thumb = hovered, buttonRect(kind, for: thumb).contains(event.location) {
@@ -228,7 +256,9 @@ final class NativeMissionControl {
             perform(.closeWindow, on: thumb)
             return nil
         case .keyDown:
-            return handleKey(event) ? nil : pass
+            if handleKey(event) { return nil }
+            suppress(for: Self.closeDelay) // Escape and Mission Control's own shortcut close it
+            return pass
         default:
             return pass
         }
@@ -251,6 +281,7 @@ final class NativeMissionControl {
         case 126: return move(dx: 0, dy: -1)
         case 36, 76: // Return / Enter opens the highlighted window
             guard let thumb = hovered else { return false }
+            suppress(for: .infinity)
             AXUIElementPerformAction(thumb.element, kAXPressAction as CFString)
             return true
         default:
@@ -298,10 +329,22 @@ final class NativeMissionControl {
             Set(all.map(\.pid)).subtracting([item.pid]).forEach { NSRunningApplication(processIdentifier: $0)?.hide() }
         case .fullScreen:
             guard let thumb, let item else { return }
+            suppress(for: .infinity)
             AXUIElementPerformAction(thumb.element, kAXPressAction as CFString)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { Windows.toggleFullScreen(item) }
         }
-        if [.closeWindow, .minimizeWindow, .hideApp, .quitApp].contains(shortcut) {
+        // Mission Control fades these thumbnails out over a moment; don't put lights back on them meanwhile.
+        switch shortcut {
+        case .closeWindow, .minimizeWindow:
+            if let thumb { gone.insert(thumb.wid) }
+        case .hideApp, .quitApp:
+            if let item { gone.formUnion(thumbs.filter { Windows.item(withID: $0.wid)?.pid == item.pid }.map(\.wid)) }
+        case .closeAll, .minimizeAll:
+            gone.formUnion(thumbs.map(\.wid))
+        case .hideOthers, .fullScreen:
+            break
+        }
+        if let current = hovered, gone.contains(current.wid) {
             hovered = nil
             overlays.forEach { $0.hideLights() }
         }
@@ -310,7 +353,7 @@ final class NativeMissionControl {
 
 /// A transparent, click-through window above Mission Control that draws the traffic lights.
 private final class ButtonOverlay: NSWindow {
-    private let lights = TrafficLights()
+    private var lights: TrafficLights?
     private var shownFor: CGWindowID?
 
     init(screen: NSScreen) {
@@ -325,7 +368,6 @@ private final class ButtonOverlay: NSWindow {
         setFrame(screen.frame, display: false)
         let content = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         contentView = content
-        content.addSubview(lights)
     }
 
     /// Places the lights at `pill` (top-left-origin global coordinates) and mirrors the pointer state.
@@ -336,19 +378,32 @@ private final class ButtonOverlay: NSWindow {
             hideLights()
             return
         }
+        if shownFor != wid {
+            // Moving to another thumbnail: the old lights fade out where they are while fresh ones pop in here,
+            // the same crossfade the overview gets from each thumbnail owning its own lights.
+            retireLights()
+            let fresh = TrafficLights()
+            contentView?.addSubview(fresh)
+            lights = fresh
+            shownFor = wid
+        }
+        guard let lights else { return }
         lights.frame = convertFromScreen(global)
         lights.hoveredKind = hovered
         lights.groupHovered = groupHovered
         lights.pressedKind = pressed
-        if shownFor != wid {
-            // Moving to another thumbnail: pop in afresh there rather than sliding across.
-            if lights.isShown { lights.replayAppear() } else { lights.setShown(true) }
-            shownFor = wid
-        }
+        lights.setShown(true)
     }
 
     func hideLights() {
         shownFor = nil
-        lights.setShown(false)
+        retireLights()
+    }
+
+    private func retireLights() {
+        guard let old = lights else { return }
+        lights = nil
+        old.setShown(false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { old.removeFromSuperview() }
     }
 }

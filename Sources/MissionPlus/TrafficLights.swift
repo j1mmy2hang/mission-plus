@@ -90,13 +90,6 @@ final class TrafficLights: NSView {
         }
     }
 
-    /// Re-plays the appear animation, for when the controls jump to another thumbnail.
-    func replayAppear() {
-        alphaValue = 0
-        isShown = false
-        setShown(true)
-    }
-
     private func updateLights() {
         for (kind, light) in lights {
             light.update(glyphVisible: groupHovered || pressedKind != nil,
