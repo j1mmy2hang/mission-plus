@@ -73,6 +73,8 @@ final class Overview {
     /// so a resync shouldn't bring these back until they've had time to go.
     private var recentlyRemoved: [CGWindowID: Date] = [:]
     private static let removalGrace: TimeInterval = 2
+    /// Where removed tiles last were, to bring one back (see `restoreTile`).
+    private var lastImageRects: [CGWindowID: CGRect] = [:]
 
     private let settings = Settings.shared
     var isVisible: Bool { window != nil }
@@ -114,6 +116,7 @@ final class Overview {
         requestedWidth = [:]
         shownWidth = [:]
         recentlyRemoved = [:]
+        lastImageRects = [:]
         items = Windows.current(including: settings.overviewIncludes)
         Windows.findElements(for: items)
         // Forget images of windows that no longer exist.
@@ -635,6 +638,7 @@ final class Overview {
         case .closeWindow:
             guard let item else { return }
             Windows.close(item); remove([item])
+            watchForSaveSheets([item])
         // Pressed again on a minimized or hidden window, ⌘M and ⌘H undo themselves.
         case .minimizeWindow:
             guard let item else { return }
@@ -652,11 +656,14 @@ final class Overview {
             }
         case .quitApp:
             guard let item else { return }
-            Windows.quit(item); remove(items.filter { $0.pid == item.pid })
+            let windows = items.filter { $0.pid == item.pid }
+            Windows.quit(item); remove(windows)
+            watchForSaveSheets(windows)
         // The "all" actions stay on this Space: windows you can't see shouldn't close along with them.
         case .closeAll:
             let targets = visibleItems.filter { $0.place == .here }
             targets.forEach(Windows.close); remove(targets)
+            watchForSaveSheets(targets)
         case .minimizeAll:
             let targets = visibleItems.filter { $0.place == .here }
             targets.forEach(Windows.minimize); remove(targets)
@@ -699,12 +706,41 @@ final class Overview {
         updateHighlight()
     }
 
+    /// Follows windows just asked to close or quit. Most are gone within a moment. One that puts up a
+    /// "Save changes?" sheet instead is waiting for an answer the user can't give under the overview, so
+    /// leave the overview for that window, sheet in front. A window that refuses without asking comes back
+    /// with the resync after `removalGrace`.
+    private func watchForSaveSheets(_ closing: [WindowItem], until deadline: Date = Date().addingTimeInterval(1.5)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self, self.window != nil, !self.isDismissing else { return }
+            let open = closing.filter { Windows.exists($0.id) }
+            if let asking = open.first(where: Windows.hasSheet) {
+                self.restoreTile(asking)
+                self.dismiss(focus: asking)
+            } else if !open.isEmpty, Date() < deadline {
+                self.watchForSaveSheets(open, until: deadline)
+            }
+        }
+    }
+
+    /// Puts a removed window's tile back where it was, so leaving the overview flies its snapshot onto the window,
+    /// last and on top. Without it, the other snapshots land in their old order, with whichever app took over
+    /// after the close in front, and the window with the sheet jumps forward once the overview is gone.
+    private func restoreTile(_ item: WindowItem) {
+        guard views[item.id] == nil, let rect = lastImageRects[item.id] else { return }
+        recentlyRemoved[item.id] = nil
+        if !items.contains(where: { $0.id == item.id }) { items.append(item) }
+        targets[item.id] = rect
+        addView(for: item, startingAt: rect)
+    }
+
     /// Removes windows from the overview right away, with a shrink-and-fade, then reflows the grid.
     private func remove(_ removed: [WindowItem]) {
         let ids = Set(removed.map(\.id))
         guard !ids.isEmpty else { return }
         for id in ids { recentlyRemoved[id] = Date() }
         let removedViews = ids.compactMap { views.removeValue(forKey: $0) }
+        for view in removedViews { lastImageRects[view.item.id] = view.imageRectInSuperview }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.18
             for view in removedViews {

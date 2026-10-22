@@ -340,16 +340,36 @@ final class NativeMissionControl {
 
     // MARK: Actions
 
+    /// Leaves Mission Control for a window, as clicking its thumbnail does.
+    fileprivate func open(_ item: WindowItem) {
+        guard let thumb = thumbs.first(where: { $0.wid == item.id }) else {
+            Windows.focus(item)
+            return
+        }
+        suppress(for: .infinity)
+        AXUIElementPerformAction(thumb.element, kAXPressAction as CFString)
+    }
+
     private func perform(_ shortcut: Shortcut, on thumb: Thumb?) {
         // Only the "all windows" shortcuts need every window looked up; ⌘W shouldn't wait on that.
         var all: [WindowItem] { thumbs.compactMap { Windows.item(withID: $0.wid) } }
         let item = thumb.flatMap { Windows.item(withID: $0.wid) }
         switch shortcut {
-        case .closeWindow: item.map(Windows.close)
+        case .closeWindow:
+            guard let item else { return }
+            Windows.close(item)
+            watchForSaveSheets([item])
         case .minimizeWindow: item.map(Windows.minimize)
         case .hideApp: item.map(Windows.hide)
-        case .quitApp: item.map(Windows.quit)
-        case .closeAll: all.forEach(Windows.close)
+        case .quitApp:
+            guard let item else { return }
+            let windows = all.filter { $0.pid == item.pid }
+            Windows.quit(item)
+            watchForSaveSheets(windows)
+        case .closeAll:
+            let windows = all
+            windows.forEach(Windows.close)
+            watchForSaveSheets(windows)
         case .minimizeAll: all.forEach(Windows.minimize)
         case .hideOthers:
             guard let item else { return }
@@ -374,6 +394,23 @@ final class NativeMissionControl {
         if let current = hovered, gone.contains(current.wid) {
             hovered = nil
             overlays.forEach { $0.hideLights() }
+        }
+    }
+}
+
+extension NativeMissionControl {
+    /// Follows windows just asked to close or quit. One that puts up a "Save changes?" sheet is waiting for an
+    /// answer that can't be given in Mission Control, so open it, as a click on its thumbnail would: Mission
+    /// Control closes and the window comes forward with its sheet.
+    fileprivate func watchForSaveSheets(_ closing: [WindowItem], until deadline: Date = Date().addingTimeInterval(1.5)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self, self.isActive else { return }
+            let open = closing.filter { Windows.exists($0.id) }
+            if let asking = open.first(where: Windows.hasSheet) {
+                self.open(asking)
+            } else if !open.isEmpty, Date() < deadline {
+                self.watchForSaveSheets(open, until: deadline)
+            }
         }
     }
 }

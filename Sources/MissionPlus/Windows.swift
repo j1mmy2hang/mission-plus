@@ -99,6 +99,19 @@ enum Windows {
         return Set(list.compactMap { $0[kCGWindowNumber as String] as? CGWindowID })
     }
 
+    static func exists(_ id: CGWindowID) -> Bool {
+        let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]] ?? []
+        return !list.isEmpty
+    }
+
+    /// Whether the window has a sheet open, such as "Save changes?" after being asked to close.
+    static func hasSheet(_ item: WindowItem) -> Bool {
+        guard let ax = item.ax else { return false }
+        var value: AnyObject?
+        AXUIElementCopyAttributeValue(ax, kAXChildrenAttribute as CFString, &value)
+        return (value as? [AXUIElement] ?? []).contains { axString($0, kAXRoleAttribute) == kAXSheetRole }
+    }
+
     /// The window with this CGWindowID, if it belongs to a regular app.
     static func item(withID id: CGWindowID) -> WindowItem? {
         guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]] else { return nil }
