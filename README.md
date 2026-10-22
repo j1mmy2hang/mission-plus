@@ -27,8 +27,9 @@ appear on it, styled like macOS's own traffic lights, and keyboard shortcuts act
 
 ### 2. Window Overview
 
-A Mission Control–style overview of every window on the current Space, with live thumbnails, the same
-buttons and shortcuts, and type-to-search. Open it with ⌃⌥↑ (or a shortcut of your choice), or let it
+A Mission Control–style overview of every window on the current Space, with thumbnails, the same
+buttons and shortcuts, and type-to-search. It can also show windows on other desktops, full-screen,
+minimized and hidden windows (switch each on in Preferences). Open it with ⌃⌥↑ (or a shortcut of your choice), or let it
 take over the three- or four-finger swipe up. Mission Control stays on ⌃↑ and F3.
 
 <p align="center"><img src="docs/demo-overview.gif" width="720" alt="The Mission Plus Window Overview: closing a window with ⌘W, searching, and opening a window"></p>
@@ -59,7 +60,7 @@ Each shortcut can be switched off in Preferences.
    update itself from the disk image or Downloads.
 2. Open Mission Plus and grant the two permissions it asks for in **System Settings › Privacy & Security**:
    - **Accessibility**, to close, minimize and focus windows and to read Mission Control.
-   - **Screen Recording**, for the overview's live thumbnails. Without it, app icons are shown instead.
+   - **Screen Recording**, for the overview's window thumbnails. Without it, app icons are shown instead.
 
 Mission Plus lives in the menu bar. It checks for updates once a day and asks before installing one.
 
@@ -70,7 +71,9 @@ the Window Overview works everywhere.
 ## Privacy
 
 Everything happens on your Mac. Window thumbnails are captured in memory, shown, and never saved or
-sent anywhere. The only network request Mission Plus makes is its daily update check, which reads
+sent anywhere. If the overview is set to show windows from other Spaces, it also captures a Space's
+windows when you switch to it, since macOS can't capture windows that aren't on screen; those stay in
+memory too. The only network request Mission Plus makes is its daily update check, which reads
 [`appcast.xml`](appcast.xml) from this repository.
 
 ## How it works

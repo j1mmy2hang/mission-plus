@@ -3,6 +3,19 @@
 Release notes for each version. `scripts/release.sh` copies a version's section into the
 update window and the GitHub release, so write it for the people using the app.
 
+## 1.1.0
+
+- **Windows from every Space, if you want them.** In Preferences, the overview can also show windows
+  on other desktops, full-screen windows, minimized windows and windows of hidden apps, in a strip
+  along the bottom. F, M and H mark full-screen, minimized and hidden ones. Opening one switches to
+  its Space, restores it or unhides its app.
+- **Tidy up without leaving.** ⌘H, ⌘Q, ⌘W and ⌘M no longer close the overview. With hidden or
+  minimized windows shown, ⌘H and ⌘M move windows into the strip, and pressing them again undoes it.
+- **Straight to the window you pick,** even when its app has windows on several Spaces.
+- **Sharper exit.** The window you open grows from a full-resolution snapshot.
+- **Windows without a thumbnail** show their app's icon and title on a tint of the app's colours.
+- **Fixed:** in Mission Control, close and minimize buttons could appear over windows from other Spaces.
+
 ## 1.0.0
 
 First public release.
