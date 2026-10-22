@@ -5,6 +5,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overview = Overview()
     private let missionControl = NativeMissionControl()
+    private let swipe = SwipeGesture()
     private var hotKey: HotKey?
     private var statusItem: NSStatusItem?
     private var preferencesWindow: NSWindow?
@@ -15,9 +16,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey = HotKey { [weak self] in self?.overview.toggle() }
 
         let settings = Settings.shared
-        settings.$hotKey.sink { [weak self] choice in
-            self?.hotKey?.register(choice)
-            self?.showItem?.title = "Window Overview  \(choice.label)"
+        settings.$hotKey.combineLatest(settings.$isRecordingHotKey).sink { [weak self] spec, recording in
+            if recording { self?.hotKey?.unregister() } else { self?.hotKey?.register(spec) }
+            self?.showItem?.title = "Window Overview  \(spec.label)"
+        }.store(in: &subscriptions)
+        swipe.onSwipeUp = { [weak self] in self?.overview.show() }
+        swipe.onSwipeDown = { [weak self] in self?.overview.dismiss() }
+        swipe.claimsSwipeDown = { [weak self] in self?.overview.isVisible ?? false }
+        swipe.systemOwnsGestures = { [weak self] in self?.missionControl.isActive ?? false }
+        settings.$swipeOpensOverview.sink { [weak self] on in
+            if on { self?.swipe.start() } else { self?.swipe.stop() }
         }.store(in: &subscriptions)
         settings.objectWillChange.sink { [weak self] in
             DispatchQueue.main.async { self?.overview.settingsChanged() }

@@ -1,7 +1,9 @@
 import AppKit
 
 /// A borderless full-screen window that can take keyboard focus.
-private final class OverviewWindow: NSWindow {
+/// A non-activating panel: it takes keyboard focus at once, like Spotlight, without asking macOS to switch apps
+/// (activation requests from a background app can be delayed or refused, which left the search field unfocused).
+private final class OverviewWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
@@ -26,8 +28,19 @@ private final class OverviewInputView: NSView {
     override func keyDown(with event: NSEvent) { controller?.typeIntoSearch(event) }
     // Window shortcuts (⌘W, ⌘M…) arrive here before the Edit menu; anything else (⌘A, ⌘V…) falls through to it.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        controller?.handleShortcut(event) ?? false || super.performKeyEquivalent(with: event)
+        if controller?.handleShortcut(event) == true { return true }
+        // Text editing keys go straight to the search field, without relying on the app's Edit menu.
+        if event.modifierFlags.intersection([.command, .option, .control]) == .command,
+           let action = Self.editActions[event.charactersIgnoringModifiers ?? ""] {
+            return NSApp.sendAction(action, to: nil, from: self)
+        }
+        return super.performKeyEquivalent(with: event)
     }
+
+    private static let editActions: [String: Selector] = [
+        "a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)), "v": #selector(NSText.paste(_:)),
+        "x": #selector(NSText.cut(_:)), "z": Selector(("undo:")), "Z": Selector(("redo:")),
+    ]
 }
 
 /// The window overview: shows every window on the current Space and lets you act on them.
@@ -36,16 +49,26 @@ final class Overview {
     private var inputView: OverviewInputView?
     private var searchBar: SearchBar?
     private var emptyLabel: NSTextField?
+    /// The blur, dim and search bar: faded on their own so thumbnails can stay opaque.
+    private var backdrop: [NSView] = []
 
     private var items: [WindowItem] = []
     private var views: [CGWindowID: ThumbnailView] = [:]
     private var thumbnailCache: [CGWindowID: CGImage] = [:]
+    /// Pixel width of the sharpest capture requested this session, per window (see `ensureResolution`).
+    private var requestedWidth: [CGWindowID: CGFloat] = [:]
+    /// Pixel width of the sharpest capture shown this session, so a slower, smaller capture can't replace it.
+    private var shownWidth: [CGWindowID: Int] = [:]
     private var selectedID: CGWindowID?
     private var filter = "" { didSet { filterChanged() } }
     private var previousApp: NSRunningApplication?
     private var lastMouse: NSPoint?
     private var resignObserver: Any?
     private var isDismissing = false
+    /// Windows just closed, minimized or hidden, and when. Apps can take a while to actually close a window,
+    /// so a resync shouldn't bring these back until they've had time to go.
+    private var recentlyRemoved: [CGWindowID: Date] = [:]
+    private static let removalGrace: TimeInterval = 2
 
     private let settings = Settings.shared
     var isVisible: Bool { window != nil }
@@ -61,6 +84,9 @@ final class Overview {
             return
         }
         previousApp = NSWorkspace.shared.frontmostApplication
+        requestedWidth = [:]
+        shownWidth = [:]
+        recentlyRemoved = [:]
         items = Windows.current()
         for item in items { item.thumbnail = thumbnailCache[item.id] }
         filter = ""
@@ -69,8 +95,10 @@ final class Overview {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
 
-        let window = OverviewWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        let window = OverviewWindow(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.level = .popUpMenu
+        window.hidesOnDeactivate = false
+        window.becomesKeyOnlyIfNeeded = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -79,24 +107,29 @@ final class Overview {
         window.alphaValue = 0
         window.setFrame(screen.frame, display: false)
 
-        let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        let root = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        root.wantsLayer = true
+        root.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = root
+
+        let blur = NSVisualEffectView(frame: root.bounds)
         blur.material = .fullScreenUI
         blur.blendingMode = .behindWindow
         blur.state = .active
-        blur.appearance = NSAppearance(named: .darkAqua)
         blur.autoresizingMask = [.width, .height]
-        window.contentView = blur
+        root.addSubview(blur)
 
-        let dim = NSView(frame: blur.bounds)
+        let dim = NSView(frame: root.bounds)
         dim.wantsLayer = true
         dim.layer?.backgroundColor = NSColor(white: 0, alpha: 0.25).cgColor
         dim.autoresizingMask = [.width, .height]
-        blur.addSubview(dim)
+        root.addSubview(dim)
 
-        let input = OverviewInputView(frame: blur.bounds)
+        let input = OverviewInputView(frame: root.bounds)
+        input.wantsLayer = true
         input.autoresizingMask = [.width, .height]
         input.controller = self
-        blur.addSubview(input)
+        root.addSubview(input)
 
         let searchBar = SearchBar()
         searchBar.onChange = { [weak self] text in self?.filter = text }
@@ -113,11 +146,12 @@ final class Overview {
         self.inputView = input
         self.searchBar = searchBar
         self.emptyLabel = emptyLabel
+        self.backdrop = [blur, dim, searchBar, emptyLabel]
 
         // Thumbnails start exactly where the real windows are, then fly into the grid.
-        for item in items { addView(for: item, startingAt: window.convertFromScreen(item.frame)) }
+        // Added back to front, so overlapping windows stack as they do on screen.
+        for item in items.reversed() { addView(for: item, startingAt: window.convertFromScreen(item.frame)) }
 
-        NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         searchBar.focus()
 
@@ -130,45 +164,111 @@ final class Overview {
             window.animator().alphaValue = 1
         }
 
-        captureThumbnails(for: items)
 
-        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.dismiss(restoreFocus: false)
+        // Clicking another app or switching with ⌘⇥ takes keyboard focus away: close. Right after opening,
+        // though, focus can bounce away and back (e.g. the menu-bar menu closing), so take it back instead.
+        let shownAt = Date()
+        resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            if Date().timeIntervalSince(shownAt) < 0.6 {
+                DispatchQueue.main.async {
+                    window.makeKeyAndOrderFront(nil)
+                    self.searchBar?.focus()
+                }
+            } else {
+                self.dismiss(restoreFocus: false)
+            }
         }
     }
 
-    /// Closes the overview. With `focus`, the chosen window flies back into place and comes to the front.
+    /// Closes the overview. Every thumbnail flies back onto its real window; with `focus`, that window
+    /// lands on top and comes to the front.
     func dismiss(focus: WindowItem? = nil, restoreFocus: Bool = true) {
-        guard let window, !isDismissing else { return }
+        guard let window, let stageHost = inputView?.layer, !isDismissing else { return }
         isDismissing = true
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
 
-        if let focus {
-            Windows.focus(focus)
-        } else if restoreFocus, let previousApp, previousApp.processIdentifier != getpid() {
-            NSApp.yieldActivation(to: previousApp)
-            previousApp.activate()
-        }
-
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            for item in items {
-                guard let view = views[item.id] else { continue }
-                let target = window.convertFromScreen(item.frame)
-                view.animator().frame = ThumbnailView.frame(forImageRect: target)
+        // Fly flat snapshots rather than the live views: plain layers are animated by the render server,
+        // with no per-frame layout, so app activation on the main thread can't make them stutter.
+        let stage = CALayer()
+        stage.frame = stageHost.bounds
+        var flights: [(layer: CALayer, from: CGRect, to: CGRect)] = []
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        stageHost.addSublayer(stage)
+        let backToFront = items.reversed().filter { $0.id != focus?.id } + (focus.map { [$0] } ?? [])
+        for item in backToFront {
+            guard let view = views[item.id], targets[item.id] != nil else { continue }
+            let layer = CALayer()
+            if let thumbnail = item.thumbnail {
+                layer.contents = thumbnail
+                layer.contentsGravity = .resize
+            } else {
+                layer.contents = item.icon?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                layer.contentsGravity = .center
+                layer.backgroundColor = NSColor(white: 0.2, alpha: 0.85).cgColor
             }
-            window.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
+            layer.masksToBounds = true
+            let to = window.convertFromScreen(item.frame)
+            // The model holds the final state; the explicit animations below supply the motion.
+            layer.frame = to
+            layer.cornerRadius = 12 // close to a real window's corners at the hand-off
+            stage.addSublayer(layer)
+            flights.append((layer, view.imageRectInSuperview, to))
+            view.isHidden = true
+        }
+        CATransaction.commit()
+
+        // Explicit animations: these layers were created in this same event, so they have never been on screen,
+        // and Core Animation skips implicit animations for such layers (the snapshots would just jump into place).
+        let duration: CFTimeInterval = 0.36
+        let timing = CAMediaTimingFunction(controlPoints: 0.2, 0.85, 0.25, 1)
+        for flight in flights {
+            let position = CABasicAnimation(keyPath: "position")
+            position.fromValue = NSValue(point: NSPoint(x: flight.from.midX, y: flight.from.midY))
+            position.toValue = NSValue(point: NSPoint(x: flight.to.midX, y: flight.to.midY))
+            let bounds = CABasicAnimation(keyPath: "bounds")
+            bounds.fromValue = NSValue(rect: NSRect(origin: .zero, size: flight.from.size))
+            bounds.toValue = NSValue(rect: NSRect(origin: .zero, size: flight.to.size))
+            let corner = CABasicAnimation(keyPath: "cornerRadius")
+            corner.fromValue = 10
+            corner.toValue = 12
+            let group = CAAnimationGroup()
+            group.animations = [position, bounds, corner]
+            group.duration = duration
+            group.timingFunction = timing
+            flight.layer.add(group, forKey: "flight")
+        }
+        // The blur shows the real windows through it, so keep it until the snapshots have nearly landed:
+        // any ghost then sits where its snapshot is arriving.
+        let fading = backdrop
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.6) {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = duration * 0.4
+                for view in fading { view.animator().alphaValue = 0 }
+            }
+        }
+        // Remove the overlay once the snapshots have landed on the real windows.
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.02) { [weak self] in
             window.orderOut(nil)
             guard let self else { return }
             self.window = nil
             self.inputView = nil
             self.views = [:]
             self.items = []
+            self.backdrop = []
             self.isDismissing = false
-        })
+        }
+
+        // Raise the window now, under the overlay, so it is in front by the time its snapshot lands.
+        if let focus {
+            Windows.focus(focus)
+        } else if restoreFocus, let previousApp, previousApp.processIdentifier != getpid(),
+                  NSWorkspace.shared.frontmostApplication != previousApp {
+            NSApp.yieldActivation(to: previousApp)
+            previousApp.activate()
+        }
     }
 
     // MARK: Views and layout
@@ -176,7 +276,6 @@ final class Overview {
     private func addView(for item: WindowItem, startingAt rect: CGRect) {
         let view = ThumbnailView(item: item, imageRect: rect)
         view.showsTitleAlways = settings.alwaysShowTitles
-        view.showsButtons = settings.showButtonsOnHover
         view.onOpen = { [weak self] in self?.dismiss(focus: item) }
         view.onClose = { [weak self] in self?.perform(.closeWindow, on: item) }
         view.onMinimize = { [weak self] in self?.perform(.minimizeWindow, on: item) }
@@ -202,6 +301,7 @@ final class Overview {
                           width: visibleFrame.width - 100, height: visibleFrame.height - 40 - topInset)
         let rects = Layout.arrange(visible.map(\.frame), in: area, spacing: 36, labelSpace: ThumbnailView.bottomInset)
         targets = Dictionary(uniqueKeysWithValues: zip(visible.map(\.id), rects))
+        ensureResolution()
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = animated ? 0.3 : 0
@@ -236,10 +336,24 @@ final class Overview {
         for (id, view) in views { view.isHighlighted = id == selectedID }
     }
 
-    private func captureThumbnails(for items: [WindowItem]) {
-        let maxSide = (window?.frame.width ?? 1600) / 2
-        Windows.captureThumbnails(for: items, maxSide: maxSide) { [weak self] id, image in
-            guard let self else { return }
+    /// Captures each visible window at the size its thumbnail is drawn (never more than the window's own pixels),
+    /// and again whenever a thumbnail grows well past its image, e.g. when a search leaves fewer, larger thumbnails.
+    /// Cached images from earlier sessions only fill in until this session's capture arrives.
+    private func ensureResolution() {
+        guard let window, !isDismissing else { return }
+        let scale = window.backingScaleFactor
+        var sizes: [CGWindowID: CGSize] = [:]
+        for item in visibleItems {
+            guard let rect = targets[item.id] else { continue }
+            let width = (min(rect.width, item.frame.width) * scale).rounded()
+            // 15% headroom, so small layout shifts don't trigger recaptures.
+            guard width > (requestedWidth[item.id] ?? 0) * 1.15 else { continue }
+            requestedWidth[item.id] = width
+            sizes[item.id] = CGSize(width: width, height: (width * item.frame.height / item.frame.width).rounded())
+        }
+        Windows.captureThumbnails(sizes: sizes) { [weak self] id, image in
+            guard let self, image.width >= self.shownWidth[id] ?? 0 else { return }
+            self.shownWidth[id] = image.width
             self.thumbnailCache[id] = image
             self.items.first { $0.id == id }?.thumbnail = image
             self.views[id]?.setThumbnail(image)
@@ -250,7 +364,9 @@ final class Overview {
     private func resync(after delay: TimeInterval = 0.45) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, let window = self.window, !self.isDismissing else { return }
-            let fresh = Windows.current()
+            let now = Date()
+            self.recentlyRemoved = self.recentlyRemoved.filter { now.timeIntervalSince($0.value) < Self.removalGrace }
+            let fresh = Windows.current().filter { self.recentlyRemoved[$0.id] == nil }
             let freshIDs = Set(fresh.map(\.id))
             for item in self.items where !freshIDs.contains(item.id) {
                 self.views.removeValue(forKey: item.id)?.removeFromSuperview()
@@ -265,7 +381,6 @@ final class Overview {
             if let selectedID = self.selectedID, !freshIDs.contains(selectedID) { self.selectedID = nil }
             self.relayout(animated: true)
             self.updateHighlight()
-            if !added.isEmpty { self.captureThumbnails(for: added) }
         }
     }
 
@@ -409,12 +524,14 @@ final class Overview {
             return
         }
         resync()
+        resync(after: Self.removalGrace + 0.1) // brings back windows that refused (e.g. a "Save changes?" sheet)
     }
 
     /// Removes windows from the overview right away, with a shrink-and-fade, then reflows the grid.
     private func remove(_ removed: [WindowItem]) {
         let ids = Set(removed.map(\.id))
         guard !ids.isEmpty else { return }
+        for id in ids { recentlyRemoved[id] = Date() }
         let removedViews = ids.compactMap { views.removeValue(forKey: $0) }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.18
@@ -442,7 +559,6 @@ final class Overview {
     func settingsChanged() {
         for view in views.values {
             view.showsTitleAlways = settings.alwaysShowTitles
-            view.showsButtons = settings.showButtonsOnHover
         }
     }
 }

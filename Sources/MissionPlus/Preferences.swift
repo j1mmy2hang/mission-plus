@@ -30,39 +30,37 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
-            Section("Permissions") {
-                permissionRow("Accessibility", detail: "Needed to close, minimize and focus windows.",
-                              granted: accessibility, action: Permissions.requestAccessibility)
-                permissionRow("Screen Recording", detail: "Needed for live window thumbnails. Without it, app icons are shown.",
-                              granted: screenRecording, action: Permissions.requestScreenRecording)
-            }
-
-            Section {
-                Toggle("Add buttons and shortcuts to Mission Control", isOn: $settings.enhanceMissionControl)
-                Toggle("Show close and minimize buttons on the highlighted window", isOn: $settings.showButtonsOnHover)
-            } header: {
-                Text("Mission Control")
-            } footer: {
-                Text("Open Mission Control as usual (⌃↑, F3 or a swipe up), then hover a window.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section {
-                Picker("Open window overview with", selection: $settings.hotKey) {
-                    ForEach(HotKeyChoice.allCases) { Text($0.label).tag($0) }
+            if !accessibility || !screenRecording {
+                Section("Permissions") {
+                    permissionRow("Accessibility", detail: "Needed to close, minimize and focus windows.",
+                                  granted: accessibility, action: Permissions.requestAccessibility)
+                    permissionRow("Screen Recording", detail: "Needed for live window thumbnails. Without it, app icons are shown.",
+                                  granted: screenRecording, action: Permissions.requestScreenRecording)
                 }
-                Toggle("Always show window titles in the overview", isOn: $settings.alwaysShowTitles)
-            } header: {
-                Text("Window Overview")
-            } footer: {
-                Text("A Mission Control–style overview with search: type to filter windows by title or app.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("General") {
+            Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in setLaunchAtLogin(on) }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
+            }
+
+            Section("Swipe up with three or four fingers opens") {
+                Picker("Swipe up opens", selection: $settings.swipeOpensOverview) {
+                    choice("Window Overview",
+                           detail: "Mission Plus's overview, with search. Swipe down closes it. Mission Control stays on ⌃↑ and F3.")
+                        .tag(true)
+                    choice("Mission Control",
+                           detail: "The macOS default. Open the overview with its shortcut below or from the menu bar icon.")
+                        .tag(false)
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+            }
+
+            Section("Window Overview") {
+                LabeledContent("Shortcut") { ShortcutRecorder(spec: $settings.hotKey, isRecording: $settings.isRecordingHotKey) }
+                Toggle("Show all window titles", isOn: $settings.alwaysShowTitles)
             }
 
             Section {
@@ -78,16 +76,25 @@ struct PreferencesView: View {
             } header: {
                 Text("Shortcuts for the highlighted window")
             } footer: {
-                Text("Also: arrow keys to move · ↵ to open · middle-click a window to close it.")
+                Text("Work in Mission Control and the overview, along with the close and minimize buttons. Also: arrow keys to move, ↵ to open, middle-click to close.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 900)
+        .frame(width: 540, height: 720)
         .onReceive(timer) { _ in
             accessibility = Permissions.accessibility
             screenRecording = Permissions.screenRecording
         }
+    }
+
+    private func choice(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 3)
     }
 
     private func permissionRow(_ name: String, detail: String, granted: Bool, action: @escaping () -> Void) -> some View {
@@ -111,5 +118,51 @@ struct PreferencesView: View {
             loginError = error.localizedDescription
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
+    }
+}
+
+/// Click, then press the new key combination. Esc cancels.
+struct ShortcutRecorder: View {
+    @Binding var spec: HotKeySpec
+    @Binding var isRecording: Bool
+    @State private var monitor: Any?
+    @State private var rejected = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if spec != .standard && !isRecording {
+                Button("Reset") { spec = .standard }
+                    .buttonStyle(.link)
+            }
+            Button(action: { isRecording ? stop() : start() }) {
+                Text(isRecording ? (rejected ? "Add ⌃, ⌥ or ⌘" : "Press keys…") : spec.label)
+                    .monospaced()
+                    .frame(minWidth: 96)
+            }
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        isRecording = true
+        rejected = false
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.keyCode == 53 { // Escape
+                stop()
+            } else if let new = HotKeySpec(event: event) {
+                spec = new
+                stop()
+            } else {
+                rejected = true // a plain key would steal normal typing
+                NSSound.beep()
+            }
+            return nil
+        }
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        isRecording = false
     }
 }

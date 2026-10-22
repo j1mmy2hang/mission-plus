@@ -19,7 +19,6 @@ final class ThumbnailView: NSView {
 
     var isHighlighted = false { didSet { updateChrome() } }
     var showsTitleAlways = false { didSet { updateChrome() } }
-    var showsButtons = true { didSet { updateChrome() } }
 
     /// The view frame that places the window image at `imageRect`.
     static func frame(forImageRect r: CGRect) -> CGRect {
@@ -97,7 +96,7 @@ final class ThumbnailView: NSView {
     private func updateChrome() {
         ring.isHidden = !isHighlighted
         titleLabel.isHidden = !(isHighlighted || showsTitleAlways)
-        lights.setShown(isHighlighted && showsButtons)
+        lights.setShown(isHighlighted)
         needsLayout = true
     }
 

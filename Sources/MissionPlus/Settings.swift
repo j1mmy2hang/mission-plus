@@ -52,35 +52,58 @@ enum Shortcut: String, CaseIterable, Identifiable {
     }
 }
 
-/// Global hotkeys that open the overview.
-enum HotKeyChoice: String, CaseIterable, Identifiable {
-    case controlOptionUp, optionTab, optionBacktick, f13
+/// The global hotkey that opens the overview: a key plus Carbon modifier flags, and how to display it.
+struct HotKeySpec: Codable, Equatable {
+    var keyCode: UInt32
+    var modifiers: UInt32
+    var label: String
 
-    var id: String { rawValue }
+    static let standard = HotKeySpec(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(controlKey | optionKey), label: "⌃⌥↑")
 
-    var label: String {
-        switch self {
-        case .controlOptionUp: return "⌃⌥↑"
-        case .optionTab: return "⌥⇥"
-        case .optionBacktick: return "⌥`"
-        case .f13: return "F13"
-        }
+    private static let functionKeys: [Int: String] = [
+        kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6", kVK_F7: "F7",
+        kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12", kVK_F13: "F13",
+        kVK_F14: "F14", kVK_F15: "F15", kVK_F16: "F16", kVK_F17: "F17", kVK_F18: "F18", kVK_F19: "F19", kVK_F20: "F20",
+    ]
+    private static let namedKeys: [Int: String] = [
+        kVK_UpArrow: "↑", kVK_DownArrow: "↓", kVK_LeftArrow: "←", kVK_RightArrow: "→",
+        kVK_Tab: "⇥", kVK_Space: "Space", kVK_Return: "↩", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
+        kVK_Home: "↖", kVK_End: "↘", kVK_PageUp: "⇞", kVK_PageDown: "⇟",
+    ]
+
+    /// A hotkey from a key press, or nil if it would get in the way of normal typing
+    /// (a plain or shift-only key, unless it's a function key).
+    init?(event: NSEvent) {
+        let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        let code = Int(event.keyCode)
+        let functionKey = Self.functionKeys[code]
+        guard functionKey != nil || !flags.subtracting(.shift).isEmpty else { return nil }
+
+        var carbon = 0
+        var label = ""
+        if flags.contains(.control) { carbon |= controlKey; label += "⌃" }
+        if flags.contains(.option) { carbon |= optionKey; label += "⌥" }
+        if flags.contains(.shift) { carbon |= shiftKey; label += "⇧" }
+        if flags.contains(.command) { carbon |= cmdKey; label += "⌘" }
+        guard let key = functionKey ?? Self.namedKeys[code] ?? event.charactersIgnoringModifiers?.uppercased(),
+              !key.isEmpty else { return nil }
+        self.init(keyCode: UInt32(code), modifiers: UInt32(carbon), label: label + key)
     }
 
-    var keyCode: UInt32 {
-        switch self {
-        case .controlOptionUp: return UInt32(kVK_UpArrow)
-        case .optionTab: return UInt32(kVK_Tab)
-        case .optionBacktick: return UInt32(kVK_ANSI_Grave)
-        case .f13: return UInt32(kVK_F13)
-        }
+    init(keyCode: UInt32, modifiers: UInt32, label: String) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        self.label = label
     }
 
-    var carbonModifiers: UInt32 {
-        switch self {
-        case .controlOptionUp: return UInt32(controlKey | optionKey)
-        case .optionTab, .optionBacktick: return UInt32(optionKey)
-        case .f13: return 0
+    /// The fixed choices of earlier versions, by their stored names.
+    static func legacy(_ name: String) -> HotKeySpec? {
+        switch name {
+        case "controlOptionUp": return .standard
+        case "optionTab": return HotKeySpec(keyCode: UInt32(kVK_Tab), modifiers: UInt32(optionKey), label: "⌥⇥")
+        case "optionBacktick": return HotKeySpec(keyCode: UInt32(kVK_ANSI_Grave), modifiers: UInt32(optionKey), label: "⌥`")
+        case "f13": return HotKeySpec(keyCode: UInt32(kVK_F13), modifiers: 0, label: "F13")
+        default: return nil
         }
     }
 }
@@ -89,27 +112,27 @@ final class Settings: ObservableObject {
     static let shared = Settings()
     private let defaults = UserDefaults.standard
 
-    @Published var hotKey: HotKeyChoice {
-        didSet { defaults.set(hotKey.rawValue, forKey: "hotKey") }
+    @Published var hotKey: HotKeySpec {
+        didSet { defaults.set(try? JSONEncoder().encode(hotKey), forKey: "overviewHotKey") }
     }
-    @Published var enhanceMissionControl: Bool {
-        didSet { defaults.set(enhanceMissionControl, forKey: "enhanceMissionControl") }
+    /// True while Preferences is recording a new hotkey, so the current one is paused.
+    @Published var isRecordingHotKey = false
+    @Published var swipeOpensOverview: Bool {
+        didSet { defaults.set(swipeOpensOverview, forKey: "swipeOpensOverview") }
     }
     @Published var alwaysShowTitles: Bool {
         didSet { defaults.set(alwaysShowTitles, forKey: "alwaysShowTitles") }
-    }
-    @Published var showButtonsOnHover: Bool {
-        didSet { defaults.set(showButtonsOnHover, forKey: "showButtonsOnHover") }
     }
     @Published var disabledShortcuts: Set<String> {
         didSet { defaults.set(Array(disabledShortcuts), forKey: "disabledShortcuts") }
     }
 
     private init() {
-        hotKey = HotKeyChoice(rawValue: defaults.string(forKey: "hotKey") ?? "") ?? .controlOptionUp
-        enhanceMissionControl = defaults.object(forKey: "enhanceMissionControl") as? Bool ?? true
+        hotKey = defaults.data(forKey: "overviewHotKey").flatMap { try? JSONDecoder().decode(HotKeySpec.self, from: $0) }
+            ?? HotKeySpec.legacy(defaults.string(forKey: "hotKey") ?? "")
+            ?? .standard
+        swipeOpensOverview = defaults.object(forKey: "swipeOpensOverview") as? Bool ?? false
         alwaysShowTitles = defaults.object(forKey: "alwaysShowTitles") as? Bool ?? false
-        showButtonsOnHover = defaults.object(forKey: "showButtonsOnHover") as? Bool ?? true
         disabledShortcuts = Set(defaults.stringArray(forKey: "disabledShortcuts") ?? [])
     }
 

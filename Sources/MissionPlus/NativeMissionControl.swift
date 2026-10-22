@@ -99,7 +99,7 @@ final class NativeMissionControl {
     // MARK: State
 
     private func poll() {
-        guard settings.enhanceMissionControl, AXIsProcessTrusted() else {
+        guard AXIsProcessTrusted() else {
             setActive(false)
             return
         }
@@ -150,7 +150,7 @@ final class NativeMissionControl {
 
     /// Pushes the hovered thumbnail and the pointer's position over the lights to the overlays.
     private func refreshLights(pointer p: CGPoint) {
-        guard settings.showButtonsOnHover, let thumb = hovered else {
+        guard let thumb = hovered else {
             overlays.forEach { $0.hideLights() }
             return
         }
@@ -203,7 +203,7 @@ final class NativeMissionControl {
         switch type {
         case .leftMouseDown:
             updateHover()
-            guard settings.showButtonsOnHover, let thumb = hovered else { return pass }
+            guard let thumb = hovered else { return pass }
             for kind in TrafficLights.Kind.allCases where buttonRect(kind, for: thumb).contains(event.location) {
                 pendingButton = kind
                 refreshLights(pointer: event.location)

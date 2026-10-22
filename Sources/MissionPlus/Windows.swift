@@ -97,6 +97,9 @@ enum Windows {
             AXUIElementSetAttributeValue(ax, kAXMainAttribute as CFString, kCFBooleanTrue)
             AXUIElementPerformAction(ax, kAXRaiseAction as CFString)
         }
+        // Make the app frontmost through Accessibility too: a plain activate() from a background app
+        // (the overview doesn't make Mission Plus active) can be ignored by macOS.
+        AXUIElementSetAttributeValue(AXUIElementCreateApplication(item.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         NSApp.yieldActivation(to: app)
         app.activate()
     }
@@ -129,18 +132,19 @@ enum Windows {
     // MARK: Thumbnails
 
     /// Captures each window's contents. Calls `update` on the main thread as each image arrives.
-    static func captureThumbnails(for items: [WindowItem], maxSide: CGFloat, update: @escaping (CGWindowID, CGImage) -> Void) {
-        guard CGPreflightScreenCaptureAccess() else { return }
-        let wanted = Set(items.map(\.id))
+    /// `sizes` gives the pixel size wanted for each window.
+    static func captureThumbnails(sizes: [CGWindowID: CGSize], update: @escaping (CGWindowID, CGImage) -> Void) {
+        guard CGPreflightScreenCaptureAccess(), !sizes.isEmpty else { return }
+        let wanted = Set(sizes.keys)
         Task.detached(priority: .userInitiated) {
             guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true) else { return }
             await withTaskGroup(of: Void.self) { group in
                 for window in content.windows where wanted.contains(window.windowID) {
+                    let size = sizes[window.windowID]!
                     group.addTask {
                         let config = SCStreamConfiguration()
-                        let scale = min(1, maxSide / max(window.frame.width, window.frame.height)) * 2
-                        config.width = max(1, Int(window.frame.width * scale))
-                        config.height = max(1, Int(window.frame.height * scale))
+                        config.width = max(1, Int(size.width))
+                        config.height = max(1, Int(size.height))
                         config.showsCursor = false
                         config.ignoreShadowsSingleWindow = true
                         let filter = SCContentFilter(desktopIndependentWindow: window)
