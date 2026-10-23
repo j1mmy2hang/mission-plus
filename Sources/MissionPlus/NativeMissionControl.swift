@@ -36,6 +36,7 @@ final class NativeMissionControl {
 
     private static let openDelay: TimeInterval = 0.35
     private static let closeDelay: TimeInterval = 0.6
+    private static let reflowDelay: TimeInterval = 0.45
 
     private let settings = Settings.shared
 
@@ -142,6 +143,9 @@ final class NativeMissionControl {
         ensureTap()
         if let found = readThumbs() {
             previousFrames = Dictionary(thumbs.map { ($0.wid, $0.frame) }, uniquingKeysWith: { a, _ in a })
+            // A window went (or came): Mission Control slides the others into the gap, but their frames jump
+            // straight to where they end up, so the lights would land on a thumbnail before it gets there.
+            if isActive, Set(found.map(\.wid)) != Set(thumbs.map(\.wid)) { suppress(for: Self.reflowDelay) }
             thumbs = found
             setActive(true)
             updateHover()
