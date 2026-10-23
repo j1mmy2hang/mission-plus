@@ -5,6 +5,17 @@
     <link>https://github.com/j1mmy2hang/mission-plus</link>
     <language>en</language>
     <item>
+      <title>1.1.3</title>
+      <pubDate>Fri, 23 Oct 2026 15:59:28 -0400</pubDate>
+      <sparkle:version>27</sparkle:version>
+      <sparkle:shortVersionString>1.1.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<ul><li><strong>No more early traffic lights in Mission Control.</strong> After you close a window, the lights wait until the next window has finished sliding under the pointer.</li></ul>
+      ]]></description>
+      <enclosure url="https://github.com/j1mmy2hang/mission-plus/releases/download/v1.1.3/MissionPlus-1.1.3.zip" type="application/octet-stream" sparkle:edSignature="0ykj8dfgxTpVkMXdaQk7OUegXT0tuhZptbDoO4kcywK3rMk+Q9RXwTT4YSBjGDmnUsORE1Tlt0rBIWPn1DyOBg==" length="2211082"/>
+    </item>
+    <item>
       <title>1.1.2</title>
       <pubDate>Thu, 22 Oct 2026 15:00:10 -0400</pubDate>
       <sparkle:version>23</sparkle:version>
