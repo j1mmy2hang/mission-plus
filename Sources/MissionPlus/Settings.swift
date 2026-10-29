@@ -136,6 +136,9 @@ final class Settings: ObservableObject {
     @Published var swipeOpensOverview: Bool {
         didSet { defaults.set(swipeOpensOverview, forKey: "swipeOpensOverview") }
     }
+    @Published var showsMenuBarIcon: Bool {
+        didSet { defaults.set(showsMenuBarIcon, forKey: "showsMenuBarIcon") }
+    }
     @Published var alwaysShowTitles: Bool {
         didSet { defaults.set(alwaysShowTitles, forKey: "alwaysShowTitles") }
     }
@@ -151,6 +154,7 @@ final class Settings: ObservableObject {
             ?? HotKeySpec.legacy(defaults.string(forKey: "hotKey") ?? "")
             ?? .standard
         swipeOpensOverview = defaults.object(forKey: "swipeOpensOverview") as? Bool ?? false
+        showsMenuBarIcon = defaults.object(forKey: "showsMenuBarIcon") as? Bool ?? false
         alwaysShowTitles = defaults.object(forKey: "alwaysShowTitles") as? Bool ?? false
         overviewIncludes = Set((defaults.stringArray(forKey: "overviewIncludes") ?? []).compactMap(OverviewInclude.init))
         disabledShortcuts = Set(defaults.stringArray(forKey: "disabledShortcuts") ?? [])

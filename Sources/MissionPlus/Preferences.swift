@@ -43,6 +43,12 @@ struct PreferencesView: View {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in setLaunchAtLogin(on) }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
+                Toggle("Show icon in menu bar", isOn: $settings.showsMenuBarIcon)
+            } footer: {
+                if !settings.showsMenuBarIcon {
+                    Text("To get back here, open Mission Plus again from Applications or Spotlight.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("Swipe up with three or four fingers opens") {

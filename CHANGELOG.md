@@ -3,6 +3,12 @@
 Release notes for each version. `scripts/release.sh` copies a version's section into the
 update window and the GitHub release, so write it for the people using the app.
 
+## 1.1.4
+
+- **Out of your menu bar.** Mission Plus no longer shows an icon in the menu bar. To change
+  settings, open Mission Plus again from Applications or Spotlight. Want the icon back? Turn on
+  "Show icon in menu bar" in Preferences.
+
 ## 1.1.3
 
 - **No more early traffic lights in Mission Control.** After you close a window, the lights wait

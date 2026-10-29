@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.store(in: &subscriptions)
 
         setUpStatusItem()
+        settings.$showsMenuBarIcon.sink { [weak self] on in self?.statusItem?.isVisible = on }
+            .store(in: &subscriptions)
         setUpEditMenu()
         missionControl.start()
 
