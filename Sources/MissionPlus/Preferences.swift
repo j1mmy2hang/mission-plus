@@ -98,6 +98,12 @@ struct PreferencesView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            Section("Advanced") {
+                Toggle(isOn: $settings.skipsParkedWindows) {
+                    Text("Skip windows parked off-screen")
+                    Text("Window managers like AeroSpace hide windows by moving them almost entirely off screen. Toggle off if you don't understand what this means.")
+                }
+            }
         }
         .formStyle(.grouped)
         .frame(width: 540, height: 780)

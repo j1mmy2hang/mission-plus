@@ -142,6 +142,10 @@ final class Settings: ObservableObject {
     @Published var alwaysShowTitles: Bool {
         didSet { defaults.set(alwaysShowTitles, forKey: "alwaysShowTitles") }
     }
+    /// Leave out windows parked in a screen corner by window managers such as AeroSpace to hide them.
+    @Published var skipsParkedWindows: Bool {
+        didSet { defaults.set(skipsParkedWindows, forKey: "skipsParkedWindows") }
+    }
     @Published var overviewIncludes: Set<OverviewInclude> {
         didSet { defaults.set(overviewIncludes.map(\.rawValue), forKey: "overviewIncludes") }
     }
@@ -156,6 +160,7 @@ final class Settings: ObservableObject {
         swipeOpensOverview = defaults.object(forKey: "swipeOpensOverview") as? Bool ?? false
         showsMenuBarIcon = defaults.object(forKey: "showsMenuBarIcon") as? Bool ?? false
         alwaysShowTitles = defaults.object(forKey: "alwaysShowTitles") as? Bool ?? false
+        skipsParkedWindows = defaults.object(forKey: "skipsParkedWindows") as? Bool ?? true
         overviewIncludes = Set((defaults.stringArray(forKey: "overviewIncludes") ?? []).compactMap(OverviewInclude.init))
         disabledShortcuts = Set(defaults.stringArray(forKey: "disabledShortcuts") ?? [])
     }

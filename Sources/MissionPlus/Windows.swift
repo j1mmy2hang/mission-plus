@@ -134,6 +134,19 @@ enum Windows {
         }
     }
 
+    /// Whether enough of the window is on a display to be worth showing. Window managers such as
+    /// AeroSpace "hide" windows by parking them in a screen corner with a pixel left on screen, since macOS
+    /// won't let a window go fully off screen.
+    private static func isParkedOffScreen(_ bounds: CGRect) -> Bool {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        return !NSScreen.screens.contains { screen in
+            let f = screen.frame
+            // CGWindowList bounds have a top-left origin on the primary screen.
+            let visible = bounds.intersection(CGRect(x: f.minX, y: primaryHeight - f.maxY, width: f.width, height: f.height))
+            return visible.width >= 60 && visible.height >= 40
+        }
+    }
+
     private static func entries(_ list: [[String: Any]]) -> [Entry] {
         let myPid = ProcessInfo.processInfo.processIdentifier
         return list.compactMap { info in
@@ -143,6 +156,7 @@ enum Windows {
                   let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: boundsDict),
                   bounds.width >= 60, bounds.height >= 40,
+                  !(Settings.shared.skipsParkedWindows && isParkedOffScreen(bounds)),
                   let app = NSRunningApplication(processIdentifier: pid),
                   app.activationPolicy == .regular
             else { return nil }

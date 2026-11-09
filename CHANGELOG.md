@@ -5,6 +5,9 @@ update window and the GitHub release, so write it for the people using the app.
 
 ## 1.1.4
 
+- **Windows hidden by window managers stay hidden.** Windows that a window manager like
+  AeroSpace has parked off screen to hide them no longer show up in the overview. Turn off
+  "Skip windows parked off-screen" under Advanced in Preferences to see them again.
 - **Out of your menu bar.** Mission Plus no longer shows an icon in the menu bar. To change
   settings, open Mission Plus again from Applications or Spotlight. Want the icon back? Turn on
   "Show icon in menu bar" in Preferences.
