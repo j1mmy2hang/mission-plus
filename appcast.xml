@@ -5,6 +5,17 @@
     <link>https://github.com/j1mmy2hang/mission-plus</link>
     <language>en</language>
     <item>
+      <title>1.2.0</title>
+      <pubDate>Tue, 24 Nov 2026 15:57:56 -0500</pubDate>
+      <sparkle:version>34</sparkle:version>
+      <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<ul><li>Simplified app experience.</li></ul>
+      ]]></description>
+      <enclosure url="https://github.com/j1mmy2hang/mission-plus/releases/download/v1.2.0/MissionPlus-1.2.0.zip" type="application/octet-stream" sparkle:edSignature="OIUxP3PlMvPw55SQt5hQqPuuaa/Idh/IJOXb+1LtMLMhwTC8SruXBKlnhEvtQVstl9EpOkqokm1G6v37s60+Cg==" length="2213323"/>
+    </item>
+    <item>
       <title>1.1.4</title>
       <pubDate>Sun, 08 Nov 2026 23:38:58 -0500</pubDate>
       <sparkle:version>31</sparkle:version>
