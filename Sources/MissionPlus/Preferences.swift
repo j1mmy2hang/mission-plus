@@ -6,6 +6,9 @@ import SwiftUI
 enum Permissions {
     static var accessibility: Bool { AXIsProcessTrusted() }
     static var screenRecording: Bool { CGPreflightScreenCaptureAccess() }
+    /// Screen Recording only serves the Window Overview's thumbnails, so ask for it only once the overview is chosen.
+    static var needsScreenRecording: Bool { Settings.shared.swipeOpensOverview }
+    static var allNeededGranted: Bool { accessibility && (screenRecording || !needsScreenRecording) }
 
     static func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -30,12 +33,17 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
-            if !accessibility || !screenRecording {
+            let askScreenRecording = Permissions.needsScreenRecording && !screenRecording
+            if !accessibility || askScreenRecording {
                 Section("Permissions") {
-                    permissionRow("Accessibility", detail: "Needed to close, minimize and focus windows.",
-                                  granted: accessibility, action: Permissions.requestAccessibility)
-                    permissionRow("Screen Recording", detail: "Needed for live window thumbnails. Without it, app icons are shown.",
-                                  granted: screenRecording, action: Permissions.requestScreenRecording)
+                    if !accessibility {
+                        permissionRow("Accessibility", detail: "Needed to close, minimize and focus windows.",
+                                      granted: false, action: Permissions.requestAccessibility)
+                    }
+                    if askScreenRecording {
+                        permissionRow("Screen Recording", detail: "For the Window Overview's live thumbnails. Without it, app icons are shown.",
+                                      granted: false, action: Permissions.requestScreenRecording)
+                    }
                 }
             }
 
@@ -44,41 +52,32 @@ struct PreferencesView: View {
                     .onChange(of: launchAtLogin) { _, on in setLaunchAtLogin(on) }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
                 Toggle("Show icon in menu bar", isOn: $settings.showsMenuBarIcon)
-            } footer: {
-                if !settings.showsMenuBarIcon {
-                    Text("To get back here, open Mission Plus again from Applications or Spotlight.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Swipe up with three or four fingers opens") {
-                Picker("Swipe up opens", selection: $settings.swipeOpensOverview) {
-                    choice("Window Overview",
-                           detail: "Mission Plus's overview, with search. Swipe down closes it. Mission Control stays on ⌃↑ and F3.")
-                        .tag(true)
-                    choice("Mission Control",
-                           detail: "The macOS default. Open the overview with its shortcut below or from the menu bar icon.")
-                        .tag(false)
-                }
-                .pickerStyle(.radioGroup)
-                .labelsHidden()
-            }
-
-            Section("Window Overview") {
-                LabeledContent("Shortcut") { ShortcutRecorder(spec: $settings.hotKey, isRecording: $settings.isRecordingHotKey) }
-                Toggle("Show all window titles", isOn: $settings.alwaysShowTitles)
             }
 
             Section {
-                ForEach(OverviewInclude.allCases) { include in
-                    Toggle(include.label, isOn: Binding(get: { settings.overviewIncludes.contains(include) },
-                                                        set: { if $0 { settings.overviewIncludes.insert(include) } else { settings.overviewIncludes.remove(include) } }))
+                Picker("Swipe up opens", selection: $settings.swipeOpensOverview) {
+                    choice("macOS Mission Control",
+                           detail: "macOS's own Mission Control, with added close and minimize buttons and keyboard shortcuts.")
+                        .tag(false)
+                    choice("Custom-designed window overview panel",
+                           detail: "An alternative window management panel I designed, with type to search for windows and more control over which windows show up. Needs Screen Recording permission for thumbnails.")
+                        .tag(true)
                 }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
             } header: {
-                Text("The overview also shows")
-            } footer: {
-                Text("Shown in a strip along the bottom. macOS can't capture windows that aren't on screen, so they show the image from the last time you saw them in the overview, or the app icon.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("Swipe up with three or four fingers opens")
+            }
+
+            if settings.swipeOpensOverview {
+                Section("Window Overview") {
+                    LabeledContent("Shortcut") { ShortcutRecorder(spec: $settings.hotKey, isRecording: $settings.isRecordingHotKey) }
+                    Toggle("Show all window titles", isOn: $settings.alwaysShowTitles)
+                    ForEach(OverviewInclude.allCases) { include in
+                        Toggle(include.label, isOn: Binding(get: { settings.overviewIncludes.contains(include) },
+                                                            set: { if $0 { settings.overviewIncludes.insert(include) } else { settings.overviewIncludes.remove(include) } }))
+                    }
+                }
             }
 
             Section {
@@ -93,17 +92,8 @@ struct PreferencesView: View {
                 }
             } header: {
                 Text("Shortcuts for the highlighted window")
-            } footer: {
-                Text("Work in Mission Control and the overview, along with the close and minimize buttons. Also: arrow keys to move, ↵ to open, middle-click to close.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Advanced") {
-                Toggle(isOn: $settings.skipsParkedWindows) {
-                    Text("Skip windows parked off-screen")
-                    Text("Window managers like AeroSpace hide windows by moving them almost entirely off screen. Toggle off if you don't understand what this means.")
-                }
-            }
         }
         .formStyle(.grouped)
         .frame(width: 540, height: 780)

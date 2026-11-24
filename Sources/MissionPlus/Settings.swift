@@ -60,10 +60,10 @@ enum OverviewInclude: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .otherDesktops: return "Windows on other desktops"
-        case .fullScreen: return "Full-screen windows"
-        case .minimized: return "Minimized windows"
-        case .hidden: return "Windows of hidden apps"
+        case .otherDesktops: return "Show windows on other desktops"
+        case .fullScreen: return "Show full-screen windows"
+        case .minimized: return "Show minimized windows"
+        case .hidden: return "Show windows of hidden apps"
         }
     }
 }
@@ -142,10 +142,6 @@ final class Settings: ObservableObject {
     @Published var alwaysShowTitles: Bool {
         didSet { defaults.set(alwaysShowTitles, forKey: "alwaysShowTitles") }
     }
-    /// Leave out windows parked in a screen corner by window managers such as AeroSpace to hide them.
-    @Published var skipsParkedWindows: Bool {
-        didSet { defaults.set(skipsParkedWindows, forKey: "skipsParkedWindows") }
-    }
     @Published var overviewIncludes: Set<OverviewInclude> {
         didSet { defaults.set(overviewIncludes.map(\.rawValue), forKey: "overviewIncludes") }
     }
@@ -160,7 +156,6 @@ final class Settings: ObservableObject {
         swipeOpensOverview = defaults.object(forKey: "swipeOpensOverview") as? Bool ?? false
         showsMenuBarIcon = defaults.object(forKey: "showsMenuBarIcon") as? Bool ?? false
         alwaysShowTitles = defaults.object(forKey: "alwaysShowTitles") as? Bool ?? false
-        skipsParkedWindows = defaults.object(forKey: "skipsParkedWindows") as? Bool ?? true
         overviewIncludes = Set((defaults.stringArray(forKey: "overviewIncludes") ?? []).compactMap(OverviewInclude.init))
         disabledShortcuts = Set(defaults.stringArray(forKey: "disabledShortcuts") ?? [])
     }

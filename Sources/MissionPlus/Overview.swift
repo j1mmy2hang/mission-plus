@@ -86,9 +86,9 @@ final class Overview {
 
     /// Windows on other Spaces can't be captured, so when a Space comes on screen, capture its windows for later:
     /// a full-screen app then has a real thumbnail once you've visited it. Kept in memory, like every thumbnail,
-    /// and only when the overview is set to show windows that aren't on screen.
+    /// and only when the overview is chosen and set to show windows that aren't on screen.
     private func spaceChanged() {
-        guard !settings.overviewIncludes.isEmpty, window == nil else { return }
+        guard settings.swipeOpensOverview, !settings.overviewIncludes.isEmpty, window == nil else { return }
         // Wait out the Space switch animation, so the windows are on screen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, self.window == nil else { return }

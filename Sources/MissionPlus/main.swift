@@ -12,16 +12,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: HotKey?
     private var statusItem: NSStatusItem?
     private var preferencesWindow: NSWindow?
-    private var showItem: NSMenuItem?
+    /// The "Window Overview" menu item and the separator after it, shown only once the overview is chosen.
+    private var overviewItems: [NSMenuItem] = []
     private var subscriptions = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         hotKey = HotKey { [weak self] in self?.overview.toggle() }
+        setUpStatusItem()
 
         let settings = Settings.shared
-        settings.$hotKey.combineLatest(settings.$isRecordingHotKey).sink { [weak self] spec, recording in
-            if recording { self?.hotKey?.unregister() } else { self?.hotKey?.register(spec) }
-            self?.showItem?.title = "Window Overview  \(spec.label)"
+        // The overview, its shortcut and its menu item exist only once the user has chosen the overview.
+        settings.$hotKey.combineLatest(settings.$isRecordingHotKey, settings.$swipeOpensOverview).sink { [weak self] spec, recording, overview in
+            if recording || !overview { self?.hotKey?.unregister() } else { self?.hotKey?.register(spec) }
+            self?.overviewItems.first?.title = "Window Overview  \(spec.label)"
+            self?.overviewItems.forEach { $0.isHidden = !overview }
         }.store(in: &subscriptions)
         swipe.onSwipeUp = { [weak self] in self?.overview.show() }
         swipe.onSwipeDown = { [weak self] in self?.overview.dismiss() }
@@ -34,13 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self?.overview.settingsChanged() }
         }.store(in: &subscriptions)
 
-        setUpStatusItem()
         settings.$showsMenuBarIcon.sink { [weak self] on in self?.statusItem?.isVisible = on }
             .store(in: &subscriptions)
         setUpEditMenu()
         missionControl.start()
 
-        if !Permissions.accessibility || !Permissions.screenRecording {
+        if !Permissions.allNeededGranted {
             showPreferences()
         }
     }
@@ -57,9 +60,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         let show = NSMenuItem(title: "Window Overview  \(Settings.shared.hotKey.label)", action: #selector(showOverview), keyEquivalent: "")
         show.target = self
+        let separator = NSMenuItem.separator()
         menu.addItem(show)
-        showItem = show
-        menu.addItem(.separator())
+        menu.addItem(separator)
+        overviewItems = [show, separator]
         let prefs = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)

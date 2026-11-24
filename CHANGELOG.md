@@ -3,6 +3,10 @@
 Release notes for each version. `scripts/release.sh` copies a version's section into the
 update window and the GitHub release, so write it for the people using the app.
 
+## 1.2.0
+
+- Simplified app experience.
+
 ## 1.1.4
 
 - **Windows hidden by window managers stay hidden.** Windows that a window manager like
