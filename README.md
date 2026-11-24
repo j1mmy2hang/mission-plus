@@ -15,8 +15,8 @@
 
 ## Two ways to use it
 
-Mission Plus works inside macOS's own Mission Control, and also brings its own Window Overview.
-Use either or both: pick which one the trackpad's swipe up opens in Preferences.
+By default, Mission Plus works inside macOS's own Mission Control. If you like, switch to its
+custom-designed Window Overview in Preferences.
 
 ### 1. In Mission Control
 
@@ -29,8 +29,8 @@ appear on it, styled like macOS's own traffic lights, and keyboard shortcuts act
 
 A Mission Control–style overview of every window on the current Space, with thumbnails, the same
 buttons and shortcuts, and type-to-search. It can also show windows on other desktops, full-screen,
-minimized and hidden windows (switch each on in Preferences). Open it with ⌃⌥↑ (or a shortcut of your choice), or let it
-take over the three- or four-finger swipe up. Mission Control stays on ⌃↑ and F3.
+minimized and hidden windows (switch each on in Preferences). Once chosen, it opens with the
+swipe up or ⌃⌥↑ (or a shortcut of your choice). Mission Control stays on ⌃↑ and F3.
 
 <p align="center"><img src="docs/demo-overview.gif" width="720" alt="The Mission Plus Window Overview: closing a window with ⌘W, searching, and opening a window"></p>
 
@@ -58,11 +58,12 @@ Each shortcut can be switched off in Preferences.
 1. [Download Mission Plus](https://github.com/j1mmy2hang/mission-plus/releases/latest/download/MissionPlus.dmg),
    open it, and **drag Mission Plus to Applications**. Run it from there: macOS won't let an app
    update itself from the disk image or Downloads.
-2. Open Mission Plus and grant the two permissions it asks for in **System Settings › Privacy & Security**:
-   - **Accessibility**, to close, minimize and focus windows and to read Mission Control.
-   - **Screen Recording**, for the overview's window thumbnails. Without it, app icons are shown instead.
+2. Open Mission Plus and grant **Accessibility** in **System Settings › Privacy & Security**, to close,
+   minimize and focus windows and to read Mission Control. The Window Overview also asks for
+   **Screen Recording**, for its thumbnails.
 
-Mission Plus lives in the menu bar. It checks for updates once a day and asks before installing one.
+To change settings, open Mission Plus again from Applications or Spotlight. It checks for updates
+once a day and asks before installing one.
 
 **Requirements:** macOS 14 or later. Developed and tested on macOS 27. The Mission Control buttons rely
 on how recent versions of macOS build Mission Control (see below) and may not appear on older versions;
